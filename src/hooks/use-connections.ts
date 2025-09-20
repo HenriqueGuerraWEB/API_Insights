@@ -18,10 +18,12 @@ export type Connection = {
   name: string;
   baseUrl: string;
   apiType: "wordpress" | "generic";
-  authMethod: "none" | "bearer" | "apiKey";
+  authMethod: "none" | "bearer" | "apiKey" | "wooCommerce";
   authToken?: string;
   apiKeyHeader?: string;
   apiKeyValue?: string;
+  wooConsumerKey?: string;
+  wooConsumerSecret?: string;
 };
 
 const CONNECTIONS_STORAGE_KEY = "api-connections";
@@ -98,7 +100,7 @@ export function useConnections() {
     }
     
     if (activeConnectionId === id) {
-      setActiveConnectionId(null);
+       setActiveConnectionId(newConnections.length > 0 ? newConnections[0].id : null);
     }
     
     toast({

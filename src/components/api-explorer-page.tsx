@@ -14,7 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -105,76 +105,67 @@ export default function ApiExplorerPage() {
     defaultValues: { method: "GET", path: "/", body: "", params: [], headers: [] },
   });
   
-  const handleSetActiveConnection = useCallback((id: string | null) => {
+ const handleSetActiveConnection = useCallback((id: string | null) => {
     setActiveConnectionId(id);
-    if (activeConnection) {
-        // When switching, if there's already an active connection,
-        // re-fetch the base schema for the new connection.
+    const newActiveConnection = connections.find(c => c.id === id);
+    if (newActiveConnection) {
+        // Reset path and execute query to fetch the base schema for the new connection.
         queryForm.setValue('path', '/');
-        handleExecuteQuery(true);
+        // We need to pass the connection object directly because the `activeConnection` state
+        // might not have updated yet due to React's async nature.
+        handleExecuteQuery(newActiveConnection);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setActiveConnectionId, queryForm, activeConnection]);
+  }, [setActiveConnectionId, queryForm, connections]);
+
 
   useEffect(() => {
     if (activeConnection) {
       if (!apiResponse) { // Only auto-fetch if there's no data
         setViewMode('data-explorer');
-        handleExecuteQuery(true);
+        handleExecuteQuery(activeConnection);
       }
-    } else if (connections.length > 0) {
-      setViewMode('welcome');
+    } else if (connections.length > 0 && !activeConnection) {
+      // If there are connections but none is active, set the first one as active.
+      setActiveConnectionId(connections[0].id);
     } else { // No connections
       setViewMode('welcome');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeConnection, connections]);
+  }, [activeConnection, connections, setActiveConnectionId]);
 
 
   const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
   const visibleColumns = useMemo(() => sortedColumns.filter(c => c.visible), [sortedColumns]);
 
-  const handleExecuteQuery = queryForm.handleSubmit(async (values) => {
-    if (!activeConnection) {
-      toast({ variant: "destructive", title: "Nenhuma conexão selecionada." });
-      return;
-    }
+  const handleExecuteQuery = (connectionOverride?: Connection | null) => {
+    queryForm.handleSubmit(async (values) => {
+      const currentConnection = connectionOverride || activeConnection;
 
-    startTransition(async () => {
-      setApiResponse(null);
-      
-      const queryParams = new URLSearchParams();
-      values.params.forEach(p => p.key && queryParams.append(p.key, p.value));
-      const queryString = queryParams.toString();
-      
-      let pathWithParams = values.path;
-      if (queryString) {
-          pathWithParams = pathWithParams.includes('?') 
-              ? `${pathWithParams}&${queryString}` 
-              : `${pathWithParams}?${queryString}`;
+      if (!currentConnection) {
+        toast({ variant: "destructive", title: "Nenhuma conexão selecionada." });
+        return;
       }
 
-      const finalHeaders: Record<string, string> = { "Content-Type": "application/json" };
-      values.headers.forEach(h => h.key && (finalHeaders[h.key] = h.value));
-
-      if (activeConnection.authMethod === 'bearer' && activeConnection.authToken) {
-        finalHeaders['Authorization'] = `Bearer ${activeConnection.authToken}`;
-      } else if (activeConnection.authMethod === 'apiKey' && activeConnection.apiKeyHeader && activeConnection.apiKeyValue) {
-        finalHeaders[activeConnection.apiKeyHeader] = activeConnection.apiKeyValue;
-      }
-      
-      const result = await fetchApiData({
-        url: activeConnection.baseUrl,
-        apiType: activeConnection.apiType,
-        path: pathWithParams,
-        method: values.method,
-        headers: finalHeaders,
-        body: values.body,
+      startTransition(async () => {
+        setApiResponse(null);
+        
+        let pathWithParams = values.path;
+        
+        const result = await fetchApiData({
+          connection: currentConnection,
+          path: pathWithParams,
+          method: values.method,
+          body: values.body,
+          params: values.params,
+          headers: values.headers,
+        });
+        
+        handleApiResponse(result);
       });
-      
-      handleApiResponse(result);
-    });
-  });
+    })();
+  }
+  
 
   const handleApiResponse = (result: FetchApiDataOutput) => {
     setApiResponse(result);
@@ -188,7 +179,7 @@ export default function ApiExplorerPage() {
         // A schema response from WordPress has a 'routes' key.
         const isSchema = firstItem && typeof firstItem === 'object' && 'routes' in firstItem;
         
-        if (isSchema) {
+        if (isSchema && activeConnection?.apiType === 'wordpress') {
             setViewMode('discovery');
             setDisplayData(result.data); // Keep the schema data for the discovery view
             setApiNamespace(result.namespace);
@@ -258,19 +249,33 @@ export default function ApiExplorerPage() {
   };
   
   const handleExploreEndpoint = (path: string) => {
+      if (!activeConnection?.baseUrl) return;
+
       let relativePath = path;
-      if (apiNamespace && path.startsWith(apiNamespace)) {
-          relativePath = path.substring(apiNamespace.length) || '/';
+      try {
+        // Create a URL object for the full path to easily extract the pathname
+        const fullUrl = new URL(path, activeConnection.baseUrl);
+        // The path we want to set in the form is the pathname from the URL
+        relativePath = fullUrl.pathname;
+      } catch (e) {
+         // If path is not a full URL, treat it as a relative path
+         relativePath = path;
       }
+      
       queryForm.setValue('path', relativePath);
       handleExecuteQuery();
   };
   
+  
   const getDisplayBaseUrl = () => {
       if (!activeConnection) return 'Selecione uma conexão';
+      
       let displayUrl = activeConnection.baseUrl;
       if (activeConnection.apiType === 'wordpress' && apiNamespace) {
-          displayUrl = `${displayUrl}/wp-json${apiNamespace}`;
+          // If a namespace is detected (e.g. /wp-json), we don't need to append it again.
+          if (!displayUrl.includes(apiNamespace)) {
+              displayUrl = `${displayUrl}${apiNamespace}`;
+          }
       } else if (apiNamespace) {
           displayUrl = `${displayUrl}${apiNamespace}`;
       }
@@ -312,7 +317,7 @@ export default function ApiExplorerPage() {
           <PageContainer>
             <Card className="bg-card/80 backdrop-blur-xl">
                 <CardContent className="p-4">
-                    <QueryBuilderForm form={queryForm} onSubmit={handleExecuteQuery} isPending={isPending} displayBaseUrl={getDisplayBaseUrl()} activeConnection={activeConnection} />
+                    <QueryBuilderForm form={queryForm} onSubmit={() => handleExecuteQuery()} isPending={isPending} displayBaseUrl={getDisplayBaseUrl()} activeConnection={activeConnection} />
                 </CardContent>
             </Card>
 
@@ -323,7 +328,7 @@ export default function ApiExplorerPage() {
                         {viewMode === 'discovery' ? 'Endpoints Disponíveis' : 'Resultados'}
                     </CardTitle>
                     <CardDescription>
-                        {viewMode === 'discovery' && apiNamespace ? `Endpoints encontrados em ${apiNamespace}` : 'Dados retornados da sua consulta.'}
+                        {viewMode === 'discovery' && activeConnection?.baseUrl ? `Endpoints encontrados em ${activeConnection.baseUrl}` : 'Dados retornados da sua consulta.'}
                     </CardDescription>
                 </div>
                 {viewMode === 'data-explorer' && (
@@ -593,5 +598,6 @@ function DiscoveryView({ data, onExplore }: { data: any, onExplore: (path: strin
       </ScrollArea>
     );
   }
+
 
 
