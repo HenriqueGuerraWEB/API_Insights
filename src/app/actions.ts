@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { suggestFriendlyNames } from '@/ai/flows/ai-schema-assistant';
@@ -7,7 +8,7 @@ import { z } from 'zod';
 
 const fetchApiDataInputSchema = z.object({
   connection: z.custom<Connection>(),
-  path: z.string(), // This is the FULL path now
+  path: z.string(),
   method: z.string(),
   params: z.array(z.object({ key: z.string(), value: z.string() })),
   headers: z.array(z.object({ key: z.string(), value: z.string() })),
@@ -21,8 +22,9 @@ export type FetchApiDataOutput = {
   namespace?: string | null;
 };
 
-function buildUrl(path: string, params: {key: string, value: string}[], connection?: Connection): string {
-    let finalUrl = path;
+function buildUrl(base: string, path: string, params: {key: string, value: string}[], connection: Connection): string {
+    let finalUrl = base.endsWith('/') ? base.slice(0, -1) : base;
+    finalUrl += path.startsWith('/') ? path : `/${path}`;
     
     const queryParams = new URLSearchParams();
 
@@ -31,15 +33,12 @@ function buildUrl(path: string, params: {key: string, value: string}[], connecti
         if (p.key) queryParams.append(p.key, p.value);
     });
 
-    if (connection) {
-        // Add auth params if needed
-        if (connection.authMethod === 'wooCommerce' && connection.wooConsumerKey && connection.wooConsumerSecret) {
-            queryParams.append('consumer_key', connection.wooConsumerKey);
-            queryParams.append('consumer_secret', connection.wooConsumerSecret);
-        }
+    // Add auth params if needed
+    if (connection.authMethod === 'wooCommerce' && connection.wooConsumerKey && connection.wooConsumerSecret) {
+        queryParams.append('consumer_key', connection.wooConsumerKey);
+        queryParams.append('consumer_secret', connection.wooConsumerSecret);
     }
-
-
+    
     const queryString = queryParams.toString();
     if (queryString) {
         return `${finalUrl}?${queryString}`;
@@ -52,9 +51,6 @@ const aiNameSuggestionCache: Record<string, Record<string, string>> = {};
 
 async function getOrFetchAiSuggestions(cacheKey: string, keys: string[]): Promise<Record<string, string>> {
     
-    // This is a server-side in-memory cache. A more robust solution for production
-    // would be a shared cache like Redis. For this app's purpose, it avoids repeated
-    // AI calls within the same session.
     if (aiNameSuggestionCache[cacheKey]) {
         return aiNameSuggestionCache[cacheKey];
     }
@@ -70,11 +66,10 @@ async function getOrFetchAiSuggestions(cacheKey: string, keys: string[]): Promis
             return acc;
         }, {} as Record<string, string>);
         
-        aiNameSuggestionCache[cacheKey] = suggestedNames; // Save to in-memory cache
+        aiNameSuggestionCache[cacheKey] = suggestedNames;
         return suggestedNames;
     } catch (aiError: any) {
         console.error("AI suggestion failed:", aiError);
-        // Fallback to original keys
         return keys.reduce((acc, key) => {
             acc[key] = key;
             return acc;
@@ -88,15 +83,16 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
     const validatedInput = fetchApiDataInputSchema.parse(input);
     const { connection, path, method, params, headers: customHeaders, body } = validatedInput;
 
-    let url = buildUrl(path, params, connection);
-
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = 'https://' + url;
-    }
+    const url = buildUrl(connection.baseUrl, path, params, connection);
 
     const finalHeaders: Record<string, string> = { "Content-Type": "application/json" };
-    customHeaders.forEach(h => h.key && (finalHeaders[h.key] = h.value));
+    
+    // Add custom headers from the form first
+    customHeaders.forEach(h => {
+        if (h.key) finalHeaders[h.key] = h.value;
+    });
 
+    // Then add authentication headers, potentially overwriting a custom one if needed
     if (connection.authMethod === 'bearer' && connection.authToken) {
         finalHeaders['Authorization'] = `Bearer ${connection.authToken}`;
     } else if (connection.authMethod === 'apiKey' && connection.apiKeyHeader && connection.apiKeyValue) {
@@ -107,7 +103,7 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
     const response = await fetch(url, {
       method: method,
       headers: new Headers(finalHeaders),
-      body: method === 'POST' || method === 'PUT' ? body : null,
+      body: (method === 'POST' || method === 'PUT') && body ? body : null,
       cache: 'no-store',
     });
 
@@ -123,24 +119,30 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
     }
 
     const data = await response.json();
-    const dataArray = Array.isArray(data) ? data : [data];
-
-    if (dataArray.length === 0) {
-      return { data: [], suggestedNames: {}, namespace: null, error: 'A resposta da API está vazia.' };
+    const dataIsArray = Array.isArray(data);
+    
+    // Handle empty array response
+    if (dataIsArray && data.length === 0) {
+      return { data: [], suggestedNames: {}, namespace: null };
     }
     
-    // For schema discovery in WordPress
-    const firstItem = dataArray[0];
+    // Handle empty object or other non-array empty responses
+    if (!dataIsArray && typeof data === 'object' && data !== null && Object.keys(data).length === 0) {
+      return { data: [], suggestedNames: {}, namespace: null, error: 'A resposta da API retornou um objeto vazio.' };
+    }
+    
+    const dataForKeys = dataIsArray ? data : [data];
+
+    const firstItem = dataForKeys[0];
     const namespace = (firstItem && typeof firstItem === 'object' && 'namespace' in firstItem) ? firstItem.namespace : null;
 
-    // Use the full URL as the cache key for suggestions to ensure uniqueness
-    const cacheKey = `ai-suggestions:${path}`;
+    const cacheKey = `ai-suggestions:${url}`;
     
-    const keys = Array.from(new Set(dataArray.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
+    const keys = Array.from(new Set(dataForKeys.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
     
     const suggestedNames = await getOrFetchAiSuggestions(cacheKey, keys);
 
-    return { data: dataArray, suggestedNames, namespace };
+    return { data, suggestedNames, namespace };
 
   } catch (error: any) {
     if (error instanceof z.ZodError) {

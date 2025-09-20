@@ -1,10 +1,7 @@
-
-
 "use client";
 
 import { useState, useMemo, useTransition, useCallback, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
-import * as z from "zod";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -79,6 +76,7 @@ import {
 import { ConnectionDialogContent } from "@/components/connection-dialog";
 import { Sidebar } from "@/components/sidebar";
 import { Badge } from "./ui/badge";
+import { cn } from "@/lib/utils";
 
 const PageContainer = ({ children }: { children: React.ReactNode }) => (
   <div className="flex-1 flex flex-col gap-4 p-4">
@@ -102,34 +100,21 @@ export default function ApiExplorerPage() {
     defaultValues: { method: "GET", path: "", body: "", params: [], headers: [] },
   });
   
- const handleSetActiveConnection = useCallback((id: string | null) => {
-    setActiveConnectionId(id);
-    const newActiveConnection = connections.find(c => c.id === id);
-    if (newActiveConnection) {
-        queryForm.setValue('path', newActiveConnection.baseUrl);
-        // Clear previous results when changing connection
-        setApiResponse(null);
-        setDisplayData([]);
-        setColumns([]);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setActiveConnectionId, queryForm, connections]);
+  const handleSetActiveConnection = useCallback((id: string | null) => {
+      setActiveConnectionId(id);
+      queryForm.setValue('path', '/');
+      setApiResponse(null);
+      setDisplayData([]);
+      setColumns([]);
+  }, [setActiveConnectionId, queryForm]);
 
 
   useEffect(() => {
-    if (activeConnection) {
-        const currentPath = queryForm.getValues('path');
-        if (!currentPath || !currentPath.startsWith(activeConnection.baseUrl)) {
-            queryForm.setValue('path', activeConnection.baseUrl);
-        }
-    } else if (connections.length > 0 && !activeConnection) {
+    if (!activeConnection && connections.length > 0) {
       handleSetActiveConnection(connections[0].id);
-    } else { // No connections
-      setApiResponse(null);
-      setDisplayData([]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeConnection, connections]);
+  }, [connections, activeConnection]);
 
 
   const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
@@ -137,9 +122,7 @@ export default function ApiExplorerPage() {
 
   const handleExecuteQuery = () => {
     queryForm.handleSubmit(async (values) => {
-      const currentConnection = activeConnection;
-
-      if (!currentConnection) {
+      if (!activeConnection) {
         toast({ variant: "destructive", title: "Nenhuma conexão selecionada." });
         return;
       }
@@ -148,15 +131,15 @@ export default function ApiExplorerPage() {
         setApiResponse(null);
         
         const result = await fetchApiData({
-          connection: currentConnection,
-          path: values.path, // We now use the full path from the form
+          connection: activeConnection,
+          path: values.path,
           method: values.method,
           body: values.body,
           params: values.params,
           headers: values.headers,
         });
         
-        handleApiResponse(result);
+        handleApiResponse(result, values.path);
       });
     })();
   }
@@ -167,19 +150,21 @@ export default function ApiExplorerPage() {
     return firstItem && typeof firstItem === 'object' && 'routes' in firstItem && typeof firstItem.routes === 'object';
   }
 
-  const handleApiResponse = (result: FetchApiDataOutput) => {
+  const handleApiResponse = (result: FetchApiDataOutput, queriedPath: string) => {
     setApiResponse(result);
 
     if (result.error) {
       setDisplayData([]);
     } else if (result.data) {
         if (isDiscoveryResponse(result.data)) {
-            // Keep discovery data in main response, but don't set it for the data table
             setDisplayData([]);
         } else {
-            // This is actual data, set it for the table
-            setDisplayData(result.data);
-            const newColumns = Object.keys(result.suggestedNames).map((key, index) => ({
+            const dataArray = Array.isArray(result.data) ? result.data : [result.data];
+            setDisplayData(dataArray);
+
+            const keys = Array.from(new Set(dataArray.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
+
+            const newColumns = keys.map((key, index) => ({
               key,
               friendlyName: result.suggestedNames[key] || key,
               visible: true,
@@ -242,25 +227,8 @@ export default function ApiExplorerPage() {
   
   const handleExploreEndpoint = (path: string) => {
     if (!activeConnection) return;
-    // The path from discovery already contains the namespace, so we append it to the base URL
-    const finalUrl = activeConnection.baseUrl.endsWith('/') 
-        ? `${activeConnection.baseUrl.slice(0, -1)}${path}`
-        : `${activeConnection.baseUrl}${path}`;
-        
-    queryForm.setValue('path', finalUrl);
-    // Automatically execute the query for the explored endpoint
-    queryForm.handleSubmit(async (values) => {
-        startTransition(async () => {
-            setApiResponse(null);
-            const result = await fetchApiData({
-                connection: activeConnection,
-                path: finalUrl,
-                method: 'GET', // Default to GET for exploration
-                body: '', params: [], headers: []
-            });
-            handleApiResponse(result);
-        });
-    })();
+    queryForm.setValue('path', path);
+    handleExecuteQuery();
   };
 
   const hasConnections = connections.length > 0;
@@ -315,7 +283,7 @@ export default function ApiExplorerPage() {
                     </CardTitle>
                     <CardDescription>
                         {isDiscoveryMode 
-                            ? `Endpoints encontrados em ${queryForm.getValues('path')}`
+                            ? `Endpoints encontrados na sua API.`
                             : 'Dados retornados da sua consulta.'
                         }
                     </CardDescription>
@@ -337,13 +305,18 @@ export default function ApiExplorerPage() {
                 
                 {!isPending && !apiResponse?.error && (
                     <>
-                        {isDiscoveryMode && (
-                             <DiscoveryView data={apiResponse.data} onExplore={handleExploreEndpoint} namespace={apiResponse.namespace || ''}/>
+                        {isDiscoveryMode && activeConnection && (
+                             <DiscoveryView 
+                                data={apiResponse.data} 
+                                onExplore={handleExploreEndpoint} 
+                                namespace={apiResponse.namespace || ''}
+                                connection={activeConnection}
+                              />
                         )}
                         {showDataTable && (
                             <DataTable data={displayData} columns={visibleColumns} onRowDelete={handleRowDelete}/>
                         )}
-                        {!apiResponse?.data && !isPending && <InitialState />}
+                        {(!apiResponse?.data || (Array.isArray(apiResponse.data) && apiResponse.data.length === 0)) && !isPending && !isDiscoveryMode && <InitialState />}
                     </>
                 )}
                 
@@ -372,21 +345,31 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
   
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)}>
+      <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
         <div className="flex gap-4 items-end">
           <FormField name="method" control={form.control} render={({ field }) => (
             <FormItem><FormLabel>Método</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem><SelectItem value="PUT">PUT</SelectItem><SelectItem value="DELETE">DELETE</SelectItem></SelectContent></Select></FormItem>
           )} />
           <FormField name="path" control={form.control} render={({ field }) => (
             <FormItem className="flex-1">
-              <FormLabel>URL do Endpoint</FormLabel>
-              <FormControl>
-                  <Input 
-                    {...field} 
-                    placeholder="https://api.example.com/data" 
-                    className="font-code"
-                  />
-              </FormControl>
+               <FormLabel>URL</FormLabel>
+               <div className="flex items-center">
+                  {activeConnection && (
+                    <span className="text-sm text-muted-foreground bg-muted px-3 h-10 flex items-center rounded-l-md border border-r-0 border-input truncate max-w-xs">
+                      {activeConnection.baseUrl}
+                    </span>
+                  )}
+                  <FormControl>
+                      <Input 
+                        {...field} 
+                        placeholder="/caminho/do/endpoint" 
+                        className={cn(
+                          "font-code",
+                          activeConnection ? "rounded-l-none" : ""
+                        )}
+                      />
+                  </FormControl>
+               </div>
             </FormItem>
           )} />
           <Button type="submit" variant="primary" disabled={isPending || !activeConnection} className="h-10">
@@ -402,7 +385,7 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
                   <div key={field.id} className="flex gap-2 mb-2">
                     <Input {...form.register(`params.${index}.key`)} placeholder="key" className="h-8 font-code" />
                     <Input {...form.register(`params.${index}.value`)} placeholder="value" className="h-8 font-code" />
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeParam(index)}><Plus className="size-4 rotate-45" /></Button>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeParam(index)}><Plus className="size-4 rotate-45" /></Button>
                   </div>
                 ))}
               </ScrollArea>
@@ -415,7 +398,7 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
                    <div key={field.id} className="flex gap-2 mb-2">
                     <Input {...form.register(`headers.${index}.key`)} placeholder="key" className="h-8 font-code"/>
                     <Input {...form.register(`headers.${index}.value`)} placeholder="value" className="h-8 font-code"/>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeHeader(index)}><Plus className="size-4 rotate-45" /></Button>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeHeader(index)}><Plus className="size-4 rotate-45" /></Button>
                   </div>
                 ))}
               </ScrollArea>
@@ -556,7 +539,7 @@ const InitialState = () => (
 );
 
 
-function DiscoveryView({ data, onExplore, namespace }: { data: any, onExplore: (path: string) => void, namespace: string }) {
+function DiscoveryView({ data, onExplore, namespace, connection }: { data: any, onExplore: (path: string) => void, namespace: string, connection: Connection }) {
     const schema = Array.isArray(data) ? data[0] : data;
     const routes = schema?.routes ? Object.entries(schema.routes) : [];
   
@@ -564,14 +547,10 @@ function DiscoveryView({ data, onExplore, namespace }: { data: any, onExplore: (
       <ScrollArea className="h-full">
         <div className="p-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {routes.length > 0 ? routes.map(([path, routeInfo]: [string, any]) => {
-            // Display path relative to the discovered namespace
-            const displayPath = path.startsWith(namespace) ? path.substring(namespace.length) : path;
-            if (!displayPath) return null; // Don't show the root namespace path itself
-
             return (
                 <Card key={path} className="bg-muted/30">
                   <CardHeader>
-                    <CardTitle className="text-lg font-code break-all">{displayPath}</CardTitle>
+                    <CardTitle className="text-lg font-code break-all">{path}</CardTitle>
                     <div className="flex gap-2 pt-2">
                       {routeInfo.methods.map((method: string, index: number) => (
                          <Badge key={`${path}-${method}-${index}`} variant={method === 'GET' ? 'secondary' : 'outline'}>{method}</Badge>
@@ -591,6 +570,3 @@ function DiscoveryView({ data, onExplore, namespace }: { data: any, onExplore: (
       </ScrollArea>
     );
   }
-
-    
-
