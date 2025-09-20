@@ -104,17 +104,9 @@ type Column = {
   order: number;
 };
 
-
-const EtherealCard = ({ className, ...props }: React.ComponentProps<typeof Card>) => (
-    <div className="relative group">
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-blue-500 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200 animate-tilt"></div>
-        <Card
-            className={cn(
-                "relative bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-lg shadow-black/20",
-                className
-            )}
-            {...props}
-        />
+const PageContainer = ({ children }: { children: React.ReactNode }) => (
+    <div className="flex flex-col h-screen p-4 gap-4 md:ml-12">
+        {children}
     </div>
 );
 
@@ -228,14 +220,16 @@ export default function ApiExplorerPage() {
 
   const addConnection = (conn: Omit<Connection, "id">) => {
     const newConnection = { ...conn, id: uuidv4() };
-    setConnections([...connections, newConnection]);
+    const newConnections = [...connections, newConnection];
+    setConnections(newConnections);
     setActiveConnectionId(newConnection.id);
   };
   
   const deleteConnection = (id: string) => {
-    setConnections(connections.filter(c => c.id !== id));
+    const newConnections = connections.filter(c => c.id !== id);
+    setConnections(newConnections);
     if (activeConnectionId === id) {
-      setActiveConnectionId(connections.length > 1 ? connections.filter(c => c.id !== id)[0].id : null);
+      setActiveConnectionId(newConnections.length > 0 ? newConnections[0].id : null);
     }
   };
   
@@ -250,15 +244,19 @@ export default function ApiExplorerPage() {
     <SidebarProvider>
       <Sidebar variant="inset" collapsible="icon">
         <SidebarHeader className="p-4 flex justify-center">
-           <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20">
+           <div className="w-8 h-8 flex items-center justify-center">
             <Rocket className="size-5 text-primary" />
           </div>
         </SidebarHeader>
         <SidebarContent className="p-0">
           <ScrollArea className="h-full">
-            <SidebarMenu className="p-4 flex flex-col items-center">
-              <SidebarMenuItem className="mb-2 w-full">
-                 <ConnectionDialog onSave={addConnection} />
+            <SidebarMenu className="p-4 flex flex-col items-center gap-2">
+              <SidebarMenuItem className="w-full">
+                 <ConnectionDialog onSave={addConnection}>
+                    <Button variant="primary" className="w-full justify-center" tooltip="Nova Conexão">
+                        <Plus className="size-4" />
+                    </Button>
+                 </ConnectionDialog>
               </SidebarMenuItem>
               {connections.map(conn => (
                 <SidebarMenuItem key={conn.id} className="w-full">
@@ -280,14 +278,32 @@ export default function ApiExplorerPage() {
           </ScrollArea>
         </SidebarContent>
       </Sidebar>
-      <div className="flex flex-col h-screen p-4 gap-4 md:ml-12">
-          <EtherealCard>
+      
+      {connections.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center text-center">
+              <div className="max-w-md">
+                  <Rocket className="mx-auto h-16 w-16 text-primary/80 mb-6" strokeWidth={1.5} />
+                  <h1 className="text-3xl font-bold tracking-tight">Bem-vindo ao API Insights</h1>
+                  <p className="mt-4 text-lg text-muted-foreground">Para começar, crie sua primeira fonte de dados. Conecte-se a qualquer API e comece a explorar.</p>
+                  <div className="mt-8">
+                       <ConnectionDialog onSave={addConnection}>
+                            <Button variant="primary" size="lg">
+                                <Plus className="mr-2 -ml-1"/>
+                                Criar Nova Fonte de Dados
+                            </Button>
+                        </ConnectionDialog>
+                  </div>
+              </div>
+          </div>
+        ) : (
+        <PageContainer>
+          <Card className="bg-card/80 backdrop-blur-xl">
               <CardContent className="p-4">
                 <QueryBuilderForm form={queryForm} onSubmit={handleExecuteQuery} isPending={isPending} activeConnection={activeConnection} />
               </CardContent>
-          </EtherealCard>
+          </Card>
 
-          <EtherealCard className="flex-1 flex flex-col overflow-hidden">
+          <Card className="flex-1 flex flex-col overflow-hidden bg-card/80 backdrop-blur-xl">
             <CardHeader className="flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-2xl">Resultados</CardTitle>
@@ -313,8 +329,9 @@ export default function ApiExplorerPage() {
               )}
               {apiResponse?.data && apiResponse.data.length === 0 && <p className="p-6">A consulta foi bem-sucedida, mas não retornou dados.</p>}
             </CardContent>
-          </EtherealCard>
-        </div>
+          </Card>
+        </PageContainer>
+      )}
     </SidebarProvider>
   );
 }
@@ -370,7 +387,7 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
            <div>
              <h4 className="font-medium mb-2 text-foreground">Body (JSON)</h4>
              <FormField name="body" control={form.control} render={({ field }) => (
-                <FormItem><FormControl><Textarea {...field} placeholder={`{\n  "key": "value"\n}`} className="font-code h-32 bg-transparent" /></FormControl></FormItem>
+                <FormItem><FormControl><Textarea {...field} placeholder={`{\n  "key": "value"\n}`} className="font-code h-32" /></FormControl></FormItem>
               )} />
            </div>
         </div>
@@ -383,7 +400,7 @@ function DataTable({ data, columns }: { data: any[]; columns: Column[] }) {
   const headers = useMemo(() => columns.map(col => <TableHead key={col.key} className="uppercase tracking-wider font-medium text-muted-foreground">{col.friendlyName}</TableHead>), [columns]);
   
   const rows = useMemo(() => data.map((row, rowIndex) => (
-    <TableRow key={rowIndex} className="border-white/5 odd:bg-white/[0.02]">
+    <TableRow key={rowIndex} className="border-white/10 odd:bg-white/[0.02]">
       {columns.map(col => (
         <TableCell key={`${rowIndex}-${col.key}`} className="font-code text-sm max-w-xs truncate py-3">
           {typeof row[col.key] === 'object' && row[col.key] !== null ? JSON.stringify(row[col.key]) : String(row[col.key] ?? '')}
@@ -424,7 +441,7 @@ function ColumnManagerDrawer({ columns, setColumns, isOpen, setIsOpen, onOrderCh
         <ScrollArea className="h-[calc(100vh-8rem)] mt-4 pr-4">
           <div className="space-y-4">
             {columns.map((col, index) => (
-              <div key={col.key} className="flex items-center gap-2 p-2 rounded-md bg-white/5">
+              <div key={col.key} className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
                  <div className="flex flex-col">
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onOrderChange(index, 'up')} disabled={index === 0}><ArrowUp className="size-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onOrderChange(index, 'down')} disabled={index === columns.length - 1}><ArrowDown className="size-4" /></Button>
@@ -475,10 +492,10 @@ const LoadingState = () => (
 
 const ErrorState = ({ message }: { message: string }) => (
   <div className="flex items-center justify-center h-full p-4">
-    <Alert variant="destructive" className="max-w-md bg-destructive/10 border-destructive/30 text-destructive-foreground">
-      <AlertCircle className="size-4 text-destructive" />
+    <Alert variant="destructive" className="max-w-md">
+      <AlertCircle className="size-4" />
       <AlertTitle>Ocorreu um Erro</AlertTitle>
-      <AlertDescription className="font-code text-sm text-destructive/80">{message}</AlertDescription>
+      <AlertDescription className="font-code text-sm">{message}</AlertDescription>
     </Alert>
   </div>
 );
@@ -486,12 +503,11 @@ const ErrorState = ({ message }: { message: string }) => (
 const InitialState = () => (
     <div className="flex flex-col items-center justify-center h-full text-center p-8">
        <div className="mb-4 text-primary/50">
-          <Rocket className="size-16" strokeWidth={1.5}/>
+          <Database className="size-16" strokeWidth={1.5}/>
        </div>
-      <h3 className="text-2xl font-bold tracking-tight">Bem-vindo ao API Insights</h3>
+      <h3 className="text-2xl font-bold tracking-tight">Pronto para a Ação</h3>
       <p className="mt-2 max-w-sm text-muted-foreground">
-        Conecte-se a uma fonte de dados, execute uma consulta e os resultados aparecerão aqui.
+        Selecione uma fonte de dados e execute uma consulta. Os resultados aparecerão aqui.
       </p>
     </div>
   );
-    

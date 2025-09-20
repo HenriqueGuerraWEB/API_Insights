@@ -31,7 +31,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
 import type { Connection } from "./api-explorer-page";
 
 const connectionSchema = z.object({
@@ -53,7 +52,7 @@ const connectionSchema = z.object({
 });
 
 
-export function ConnectionDialog({ onSave }: { onSave: (data: Omit<Connection, 'id'>) => void }) {
+export function ConnectionDialog({ onSave, children }: { onSave: (data: Omit<Connection, 'id'>) => void, children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const form = useForm<z.infer<typeof connectionSchema>>({
     resolver: zodResolver(connectionSchema),
@@ -70,16 +69,21 @@ export function ConnectionDialog({ onSave }: { onSave: (data: Omit<Connection, '
 
   const handleSubmit = form.handleSubmit((data) => {
     onSave(data);
-    form.reset();
+    form.reset({
+      name: "",
+      baseUrl: "",
+      authMethod: "none",
+      authToken: "",
+      apiKeyHeader: "",
+      apiKeyValue: "",
+    });
     setIsOpen(false);
   });
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="primary" className="w-full justify-center" tooltip="Nova Conexão">
-          <Plus className="size-4" />
-        </Button>
+        {children}
       </DialogTrigger>
       <DialogContent>
         <Form {...form}>
@@ -121,5 +125,3 @@ export function ConnectionDialog({ onSave }: { onSave: (data: Omit<Connection, '
     </Dialog>
   );
 }
-
-    
