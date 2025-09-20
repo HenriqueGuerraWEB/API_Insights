@@ -115,15 +115,19 @@ function ConnectionItem({
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const handleDelete = (e: React.MouseEvent) => {
+  const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete(connection.id);
-  };
+  }, [connection.id, onDelete]);
+
+  const handleSelect = useCallback(() => {
+    onSelect(connection.id);
+  }, [connection.id, onSelect]);
   
   return (
-    <SidebarMenuItem key={connection.id} className="w-full relative group/item">
+    <SidebarMenuItem className="w-full relative group/item">
       <SidebarMenuButton
-        onClick={() => onSelect(connection.id)}
+        onClick={handleSelect}
         isActive={isActive}
         className="justify-center"
         tooltip={connection.name}
@@ -544,5 +548,3 @@ const InitialState = () => (
       </p>
     </div>
   );
-
-    
