@@ -77,7 +77,7 @@ export function ConnectionDialog({ onSave }: { onSave: (data: Omit<Connection, '
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="primary" className="w-full justify-center" tooltip={{children: "Nova Conexão", side: "right"}}>
+        <Button variant="primary" className="w-full justify-center" tooltip="Nova Conexão">
           <Plus className="size-4" />
         </Button>
       </DialogTrigger>
@@ -121,3 +121,5 @@ export function ConnectionDialog({ onSave }: { onSave: (data: Omit<Connection, '
     </Dialog>
   );
 }
+
+    

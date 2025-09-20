@@ -239,7 +239,7 @@ export default function ApiExplorerPage() {
   
   return (
     <SidebarProvider>
-    <Sidebar variant="inset" collapsible="icon">
+      <Sidebar variant="inset" collapsible="icon">
         <SidebarHeader className="p-4 flex justify-center">
            <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20">
             <Rocket className="size-5 text-primary" />
@@ -257,7 +257,7 @@ export default function ApiExplorerPage() {
                     onClick={() => setActiveConnectionId(conn.id)}
                     isActive={activeConnectionId === conn.id}
                     className="justify-center"
-                    tooltip={{children: conn.name, side: "right"}}
+                    tooltip={conn.name}
                   >
                     <Database className="size-4" />
                   </SidebarMenuButton>
@@ -486,3 +486,5 @@ const InitialState = () => (
       </p>
     </div>
   );
+
+    
