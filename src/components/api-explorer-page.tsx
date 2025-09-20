@@ -72,11 +72,13 @@ import {
   Sheet as SheetIcon,
   FileText,
   Sparkles,
-  Rocket
+  Rocket,
+  Search,
+  Trash2
 } from "lucide-react";
 import { ConnectionDialogContent } from "@/components/connection-dialog";
-import { ConnectionItem } from "@/components/connection-item";
 import { Sidebar } from "@/components/sidebar";
+import { Badge } from "./ui/badge";
 
 const PageContainer = ({ children }: { children: React.ReactNode }) => (
   <div className="flex-1 flex flex-col gap-4 p-4">
@@ -87,7 +89,11 @@ const PageContainer = ({ children }: { children: React.ReactNode }) => (
 // Main Component
 export default function ApiExplorerPage() {
   const { connections, addConnection, deleteConnection, activeConnection, setActiveConnectionId } = useConnections();
+  
+  const [viewMode, setViewMode] = useState<'welcome' | 'discovery' | 'data-explorer'>('welcome');
   const [apiResponse, setApiResponse] = useState<FetchApiDataOutput | null>(null);
+  const [displayData, setDisplayData] = useState<any[]>([]);
+
   const [columns, setColumns] = useState<Column[]>([]);
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
@@ -98,20 +104,31 @@ export default function ApiExplorerPage() {
   });
   
   useEffect(() => {
-    if (activeConnection?.baseUrl) {
-      try {
-        const url = new URL(activeConnection.baseUrl);
-        queryForm.setValue('path', url.pathname);
-      } catch (e) {
-        queryForm.setValue('path', '/');
-      }
+    if (activeConnection) {
+        setViewMode('data-explorer'); // Or some initial state when a connection is active
+        try {
+            const url = new URL(activeConnection.baseUrl);
+            queryForm.setValue('path', url.pathname);
+        } catch (e) {
+            queryForm.setValue('path', '/');
+        }
+    } else if (connections.length > 0) {
+        setActiveConnectionId(connections[0].id);
     } else {
-        queryForm.setValue('path', '/');
+        setViewMode('welcome');
     }
-  }, [activeConnection, queryForm]);
+  }, [activeConnection, connections, setActiveConnectionId, queryForm]);
+
 
   const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
   const visibleColumns = useMemo(() => sortedColumns.filter(c => c.visible), [sortedColumns]);
+  
+  const isApiResponseSchema = useMemo(() => {
+    if (!apiResponse?.data) return false;
+    const firstItem = Array.isArray(apiResponse.data) ? apiResponse.data[0] : apiResponse.data;
+    return firstItem && typeof firstItem === 'object' && 'routes' in firstItem && 'namespace' in firstItem;
+  }, [apiResponse]);
+
 
   const handleExecuteQuery = queryForm.handleSubmit(async (values) => {
     if (!activeConnection) {
@@ -141,31 +158,41 @@ export default function ApiExplorerPage() {
         headers: finalHeaders,
         body: values.body,
       });
+      
+      setApiResponse(result);
 
       if (result.error) {
-        setApiResponse({ data: null, suggestedNames: {}, error: result.error });
-      } else {
-        setApiResponse(result);
-        const newColumns = Object.keys(result.suggestedNames).map((key, index) => ({
-          key,
-          friendlyName: result.suggestedNames[key] || key,
-          visible: true,
-          order: index,
-        }));
-        setColumns(newColumns);
+        setViewMode('data-explorer'); // Stay in data explorer to show error
+        setDisplayData([]);
+      } else if (result.data) {
+        const isSchema = Array.isArray(result.data) && result.data[0]?.routes;
+        if(isSchema) {
+            setViewMode('discovery');
+            setDisplayData([]);
+        } else {
+            setViewMode('data-explorer');
+            setDisplayData(result.data);
+            const newColumns = Object.keys(result.suggestedNames).map((key, index) => ({
+              key,
+              friendlyName: result.suggestedNames[key] || key,
+              visible: true,
+              order: index,
+            }));
+            setColumns(newColumns);
+        }
       }
     });
   });
 
   const handleExport = async (format: "json" | "csv" | "pdf") => {
-    if (!apiResponse?.data || visibleColumns.length === 0) {
+    if (displayData.length === 0 || visibleColumns.length === 0) {
       toast({ variant: "destructive", title: "Não há dados para exportar." });
       return;
     }
 
     startTransition(async () => {
       const exportCols = visibleColumns.map(c => ({ key: c.key, name: c.friendlyName }));
-      const result = await exportData({ data: apiResponse.data, columns: exportCols, format });
+      const result = await exportData({ data: displayData, columns: exportCols, format });
 
       if (result.error) {
         toast({ variant: "destructive", title: "Erro na Exportação", description: result.error });
@@ -201,7 +228,16 @@ export default function ApiExplorerPage() {
     
     setColumns(newColumns.map((col, idx) => ({ ...col, order: idx })));
   };
+
+  const handleRowDelete = (rowIndex: number) => {
+    setDisplayData(prevData => prevData.filter((_, index) => index !== rowIndex));
+  };
   
+  const handleExploreEndpoint = (path: string) => {
+    queryForm.setValue('path', path);
+    handleExecuteQuery();
+  };
+
   return (
     <SidebarProvider>
       <div className="flex h-screen bg-background text-foreground">
@@ -219,24 +255,17 @@ export default function ApiExplorerPage() {
           </DialogContent>
         </Dialog>
 
-        {connections.length === 0 ? (
+        {viewMode === 'welcome' ? (
           <div className="flex-1 flex items-center justify-center text-center p-4">
               <div className="max-w-md">
                   <Rocket className="mx-auto h-16 w-16 text-primary/80 mb-6" strokeWidth={1.5} />
                   <h1 className="text-3xl font-bold tracking-tight">Bem-vindo ao API Insights</h1>
                   <p className="mt-4 text-lg text-muted-foreground">Para começar, crie sua primeira fonte de dados. Conecte-se a qualquer API e comece a explorar.</p>
                   <div className="mt-8">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                            <Button variant="primary" size="lg">
-                                <Plus className="mr-2 -ml-1"/>
-                                Criar Nova Fonte de Dados
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <ConnectionDialogContent onSave={handleAddNewConnection} onCancel={() => {}} />
-                        </DialogContent>
-                      </Dialog>
+                      <Button variant="primary" size="lg" onClick={() => setIsNewConnectionDialogOpen(true)}>
+                          <Plus className="mr-2 -ml-1"/>
+                          Criar Nova Fonte de Dados
+                      </Button>
                   </div>
               </div>
           </div>
@@ -251,26 +280,39 @@ export default function ApiExplorerPage() {
             <Card className="flex-1 flex flex-col overflow-hidden bg-card/80 backdrop-blur-xl">
                 <CardHeader className="flex-row items-center justify-between">
                 <div>
-                    <CardTitle className="text-2xl">Resultados</CardTitle>
-                    <CardDescription>Dados retornados da sua consulta.</CardDescription>
+                    <CardTitle className="text-2xl">
+                        {viewMode === 'discovery' ? 'Endpoints Disponíveis' : 'Resultados'}
+                    </CardTitle>
+                    <CardDescription>
+                        {viewMode === 'discovery' ? 'Selecione um endpoint para explorar os dados.' : 'Dados retornados da sua consulta.'}
+                    </CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
-                    <ColumnManagerDrawer 
-                    columns={columns} 
-                    setColumns={setColumns} 
-                    onOrderChange={updateColumnOrder}
-                    />
-                    <ExportDropdown onExport={handleExport} isPending={isPending} />
-                </div>
+                {viewMode === 'data-explorer' && (
+                    <div className="flex items-center gap-2">
+                        <ColumnManagerDrawer 
+                        columns={columns} 
+                        setColumns={setColumns} 
+                        onOrderChange={updateColumnOrder}
+                        />
+                        <ExportDropdown onExport={handleExport} isPending={isPending} />
+                    </div>
+                )}
                 </CardHeader>
                 <CardContent className="flex-1 overflow-auto p-0">
-                {isPending && !apiResponse && <LoadingState />}
-                {apiResponse?.error && <ErrorState message={apiResponse.error} />}
-                {!isPending && !apiResponse && <InitialState />}
-                {apiResponse?.data && apiResponse.data.length > 0 && (
-                    <DataTable data={apiResponse.data} columns={visibleColumns} />
+                {isPending && <LoadingState />}
+                {!isPending && apiResponse?.error && <ErrorState message={apiResponse.error} />}
+                {!isPending && !apiResponse && viewMode !== 'discovery' && <InitialState />}
+
+                {viewMode === 'discovery' && apiResponse?.data && (
+                    <DiscoveryView data={apiResponse.data} onExplore={handleExploreEndpoint} />
                 )}
-                {apiResponse?.data && apiResponse.data.length === 0 && <p className="p-6">A consulta foi bem-sucedida, mas não retornou dados.</p>}
+
+                {viewMode === 'data-explorer' && displayData.length > 0 && (
+                    <DataTable data={displayData} columns={visibleColumns} onRowDelete={handleRowDelete}/>
+                )}
+                {viewMode === 'data-explorer' && !isPending && displayData.length === 0 && !apiResponse?.error && (
+                     <p className="p-6">A consulta foi bem-sucedida, mas não retornou dados.</p>
+                )}
                 </CardContent>
             </Card>
           </PageContainer>
@@ -348,23 +390,28 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
   );
 }
 
-function DataTable({ data, columns }: { data: any[]; columns: Column[] }) {
+function DataTable({ data, columns, onRowDelete }: { data: any[]; columns: Column[]; onRowDelete: (rowIndex: number) => void }) {
   const headers = useMemo(() => columns.map(col => <TableHead key={col.key} className="uppercase tracking-wider font-medium text-muted-foreground">{col.friendlyName}</TableHead>), [columns]);
   
   const rows = useMemo(() => data.map((row, rowIndex) => (
-    <TableRow key={rowIndex} className="border-white/10 odd:bg-white/[0.02]">
+    <TableRow key={row.id || rowIndex} className="border-white/10 odd:bg-white/[0.02] group">
       {columns.map(col => (
         <TableCell key={`${rowIndex}-${col.key}`} className="font-code text-sm max-w-xs truncate py-3">
           {typeof row[col.key] === 'object' && row[col.key] !== null ? JSON.stringify(row[col.key]) : String(row[col.key] ?? '')}
         </TableCell>
       ))}
+       <TableCell className="text-right w-10">
+          <Button variant="ghost" size="icon" className="size-8 opacity-0 group-hover:opacity-100" onClick={() => onRowDelete(rowIndex)}>
+              <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />
+          </Button>
+      </TableCell>
     </TableRow>
-  )), [data, columns]);
+  )), [data, columns, onRowDelete]);
 
   return (
     <ScrollArea className="h-full">
       <Table>
-        <TableHeader><TableRow className="border-b border-white/10 hover:bg-transparent">{headers}</TableRow></TableHeader>
+        <TableHeader><TableRow className="border-b border-white/10 hover:bg-transparent">{headers}<TableHead /></TableRow></TableHeader>
         <TableBody>{rows}</TableBody>
       </Table>
     </ScrollArea>
@@ -463,5 +510,37 @@ const InitialState = () => (
         Selecione uma fonte de dados e execute uma consulta. Os resultados aparecerão aqui.
       </p>
     </div>
-  );
+);
 
+
+function DiscoveryView({ data, onExplore }: { data: any, onExplore: (path: string) => void }) {
+    const schema = Array.isArray(data) ? data[0] : data;
+    const routes = schema?.routes ? Object.entries(schema.routes) : [];
+  
+    return (
+      <ScrollArea className="h-full">
+        <div className="p-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {routes.map(([path, routeInfo]: [string, any]) => (
+            <Card key={path} className="bg-muted/30">
+              <CardHeader>
+                <CardTitle className="text-lg font-code break-all">{path}</CardTitle>
+                <div className="flex gap-2 pt-2">
+                  {routeInfo.methods.map((method: string) => (
+                     <Badge key={method} variant={method === 'GET' ? 'secondary' : 'outline'}>{method}</Badge>
+                  ))}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={() => onExplore(path)}>
+                  <Search className="mr-2 size-4" />
+                  Explorar Endpoint
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </ScrollArea>
+    );
+  }
+
+    
