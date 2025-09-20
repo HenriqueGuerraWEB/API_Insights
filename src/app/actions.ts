@@ -22,15 +22,20 @@ export type FetchApiDataOutput = {
 };
 
 function buildUrl(connection: Connection, path: string, params: {key: string, value: string}[]): string {
-    let finalUrl = connection.baseUrl.endsWith('/') ? connection.baseUrl.slice(0, -1) : connection.baseUrl;
-    const finalPath = path.startsWith('/') ? path : `/${path}`;
+    let finalUrl = connection.baseUrl;
+
+    // Ensure base URL doesn't have a trailing slash if the path has a leading one
+    if (finalUrl.endsWith('/') && path.startsWith('/')) {
+        finalUrl = finalUrl.slice(0, -1);
+    }
     
-    if (connection.apiType === 'wordpress' && !finalPath.startsWith('/wp-json')) {
-        finalUrl += '/wp-json' + finalPath;
-    } else {
-        finalUrl += finalPath;
+    // Ensure there's a slash between them if neither has one
+    if (!finalUrl.endsWith('/') && !path.startsWith('/') && path.length > 0) {
+        finalUrl += '/';
     }
 
+    finalUrl += path;
+    
     const queryParams = new URLSearchParams();
 
     // Add params from the form
@@ -56,12 +61,11 @@ const aiNameSuggestionCache: Record<string, Record<string, string>> = {};
 
 async function getOrFetchAiSuggestions(cacheKey: string, keys: string[]): Promise<Record<string, string>> {
     
-    // For client-side localStorage access, this function would need to be a client-side utility.
-    // Given this is a server action, we will stick to in-memory cache.
-    // A more robust solution would be a shared cache like Redis.
-    const cachedSuggestions = localStorage.getItem(cacheKey);
-    if (cachedSuggestions) {
-        return JSON.parse(cachedSuggestions);
+    // This is a server-side in-memory cache. A more robust solution for production
+    // would be a shared cache like Redis. For this app's purpose, it avoids repeated
+    // AI calls within the same session.
+    if (aiNameSuggestionCache[cacheKey]) {
+        return aiNameSuggestionCache[cacheKey];
     }
     
     if (keys.length === 0) {
@@ -75,7 +79,7 @@ async function getOrFetchAiSuggestions(cacheKey: string, keys: string[]): Promis
             return acc;
         }, {} as Record<string, string>);
         
-        localStorage.setItem(cacheKey, JSON.stringify(suggestedNames));
+        aiNameSuggestionCache[cacheKey] = suggestedNames; // Save to in-memory cache
         return suggestedNames;
     } catch (aiError: any) {
         console.error("AI suggestion failed:", aiError);
@@ -230,4 +234,3 @@ export async function exportData(input: z.infer<typeof exportDataInputSchema>): 
         return { content: '', mimeType: '', fileName: '', error: error.message || 'Ocorreu um erro desconhecido durante a exportação.' };
     }
 }
-

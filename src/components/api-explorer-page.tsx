@@ -109,8 +109,10 @@ export default function ApiExplorerPage() {
     setActiveConnectionId(id);
     const newActiveConnection = connections.find(c => c.id === id);
     if (newActiveConnection) {
-        queryForm.setValue('path', '/');
-        handleExecuteQuery(newActiveConnection);
+        // When a connection is selected, fetch its schema by default
+        const initialPath = newActiveConnection.apiType === 'wordpress' ? '/wp-json' : '/';
+        queryForm.setValue('path', initialPath);
+        handleExecuteQuery(newActiveConnection, initialPath);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setActiveConnectionId, queryForm, connections]);
@@ -118,14 +120,14 @@ export default function ApiExplorerPage() {
 
   useEffect(() => {
     if (activeConnection) {
-      if (!apiResponse) { // Only auto-fetch if there's no data
-        setViewMode('data-explorer');
-        handleExecuteQuery(activeConnection);
-      }
+        setViewMode('data-explorer'); 
     } else if (connections.length > 0 && !activeConnection) {
-      setActiveConnectionId(connections[0].id);
+      // If there are connections but none is active, activate the first one.
+      handleSetActiveConnection(connections[0].id);
     } else { // No connections
       setViewMode('welcome');
+      setApiResponse(null);
+      setDisplayData([]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConnection, connections, setActiveConnectionId]);
@@ -134,7 +136,7 @@ export default function ApiExplorerPage() {
   const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
   const visibleColumns = useMemo(() => sortedColumns.filter(c => c.visible), [sortedColumns]);
 
-  const handleExecuteQuery = (connectionOverride?: Connection | null) => {
+  const handleExecuteQuery = (connectionOverride?: Connection | null, pathOverride?: string) => {
     queryForm.handleSubmit(async (values) => {
       const currentConnection = connectionOverride || activeConnection;
 
@@ -148,7 +150,7 @@ export default function ApiExplorerPage() {
         
         const result = await fetchApiData({
           connection: currentConnection,
-          path: values.path,
+          path: pathOverride ?? values.path,
           method: values.method,
           body: values.body,
           params: values.params,
@@ -170,9 +172,10 @@ export default function ApiExplorerPage() {
       setApiNamespace(null);
     } else if (result.data) {
         const firstItem = Array.isArray(result.data) ? result.data[0] : result.data;
-        const isSchema = firstItem && typeof firstItem === 'object' && 'routes' in firstItem;
+        // A response is considered a schema/discovery response if it contains a `routes` object.
+        const isSchema = firstItem && typeof firstItem === 'object' && 'routes' in firstItem && typeof firstItem.routes === 'object';
         
-        if (isSchema && activeConnection?.apiType === 'wordpress') {
+        if (isSchema) {
             setViewMode('discovery');
             setDisplayData(result.data); 
             setApiNamespace(result.namespace);
@@ -243,7 +246,7 @@ export default function ApiExplorerPage() {
   
   const handleExploreEndpoint = (path: string) => {
       queryForm.setValue('path', path);
-      handleExecuteQuery();
+      handleExecuteQuery(null, path);
   };
   
   
@@ -357,7 +360,7 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
   
   return (
     <Form {...form}>
-      <form onSubmit={onSubmit}>
+      <form onSubmit={form.handleSubmit(onSubmit)}>
         <div className="flex gap-4 items-end">
           <FormField name="method" control={form.control} render={({ field }) => (
             <FormItem><FormLabel>Método</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem><SelectItem value="PUT">PUT</SelectItem><SelectItem value="DELETE">DELETE</SelectItem></SelectContent></Select></FormItem>
@@ -366,11 +369,16 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
             <FormItem className="flex-1">
               <FormLabel>Caminho do Endpoint</FormLabel>
               <FormControl>
-                <div className="flex flex-col">
-                  <span className="text-sm text-muted-foreground font-code mb-1">
-                    Base: {activeConnection?.baseUrl || 'N/A'}
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-code">
+                    {activeConnection?.baseUrl}{activeConnection?.baseUrl.endsWith('/') ? '' : '/'}
                   </span>
-                  <Input {...field} placeholder="/caminho/do/endpoint" className="font-code" />
+                  <Input 
+                    {...field} 
+                    placeholder="caminho/do/endpoint" 
+                    className="font-code"
+                    style={{ paddingLeft: `calc(${activeConnection?.baseUrl.length || 0}ch + 2rem)`}}
+                  />
                 </div>
               </FormControl>
             </FormItem>
