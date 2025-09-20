@@ -11,8 +11,8 @@ import {
   Sidebar,
   SidebarHeader,
   SidebarContent,
-  SidebarMenu,
   SidebarMenuItem,
+  SidebarMenu,
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -86,6 +86,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConnectionDialog } from "@/components/connection-dialog";
+import { ConnectionItem } from "@/components/connection-item";
 
 
 export type Connection = {
@@ -104,46 +105,6 @@ const PageContainer = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-function ConnectionItem({ 
-  connection, 
-  isActive, 
-  onSelect, 
-  onDelete 
-}: { 
-  connection: Connection; 
-  isActive: boolean;
-  onSelect: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  const handleDelete = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onDelete(connection.id);
-  }, [connection.id, onDelete]);
-
-  const handleSelect = useCallback(() => {
-    onSelect(connection.id);
-  }, [connection.id, onSelect]);
-  
-  return (
-    <SidebarMenuItem className="w-full relative group/item">
-      <SidebarMenuButton
-        onClick={handleSelect}
-        isActive={isActive}
-        className="justify-center"
-        tooltip={connection.name}
-      >
-        <Database className="size-4" />
-      </SidebarMenuButton>
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        className="absolute right-[-35px] top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover/item:opacity-100 transition-opacity" 
-        onClick={handleDelete}>
-        <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />
-      </Button>
-    </SidebarMenuItem>
-  );
-}
 
 // Main Component
 export default function ApiExplorerPage() {
@@ -277,89 +238,89 @@ export default function ApiExplorerPage() {
   
   return (
     <SidebarProvider>
-        <div className="flex h-screen bg-background text-foreground">
-            <Sidebar variant="inset" collapsible="icon">
-                <SidebarHeader className="p-4 flex justify-center">
-                <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20">
-                    <Rocket className="size-5 text-primary" />
-                </div>
-                </SidebarHeader>
-                <SidebarContent className="p-0">
-                <ScrollArea className="h-full">
-                    <SidebarMenu className="p-4 flex flex-col items-center gap-2">
-                    <SidebarMenuItem className="w-full">
-                        <ConnectionDialog onSave={addConnection}>
-                            <Button variant="primary" className="w-full justify-center" tooltip="Nova Conexão">
-                                <Plus className="size-4" />
-                            </Button>
-                        </ConnectionDialog>
-                    </SidebarMenuItem>
-                    {connections.map(conn => (
-                        <ConnectionItem
-                        key={conn.id}
-                        connection={conn}
-                        isActive={activeConnectionId === conn.id}
-                        onSelect={handleSetActiveConnection}
-                        onDelete={deleteConnection}
-                        />
-                    ))}
-                    </SidebarMenu>
-                </ScrollArea>
-                </SidebarContent>
-            </Sidebar>
-            
-            {connections.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center text-center">
-                    <div className="max-w-md">
-                        <Rocket className="mx-auto h-16 w-16 text-primary/80 mb-6" strokeWidth={1.5} />
-                        <h1 className="text-3xl font-bold tracking-tight">Bem-vindo ao API Insights</h1>
-                        <p className="mt-4 text-lg text-muted-foreground">Para começar, crie sua primeira fonte de dados. Conecte-se a qualquer API e comece a explorar.</p>
-                        <div className="mt-8">
-                            <ConnectionDialog onSave={addConnection}>
-                                <Button variant="primary" size="lg">
-                                    <Plus className="mr-2 -ml-1"/>
-                                    Criar Nova Fonte de Dados
-                                </Button>
-                            </ConnectionDialog>
-                        </div>
-                    </div>
-                </div>
-                ) : (
-                <PageContainer>
-                <Card className="bg-card/80 backdrop-blur-xl">
-                    <CardContent className="p-4">
-                        <QueryBuilderForm form={queryForm} onSubmit={handleExecuteQuery} isPending={isPending} activeConnection={activeConnection} />
-                    </CardContent>
-                </Card>
+      <div className="flex h-screen bg-background text-foreground">
+        <Sidebar>
+          <SidebarHeader className="p-4 flex justify-center">
+            <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20">
+                <Rocket className="size-5 text-primary" />
+            </div>
+          </SidebarHeader>
+          <SidebarContent className="p-0">
+            <ScrollArea className="h-full">
+              <SidebarMenu className="p-4 flex flex-col items-center gap-2">
+                <SidebarMenuItem className="w-full">
+                  <ConnectionDialog onSave={addConnection}>
+                    <SidebarMenuButton className="w-full justify-center" tooltip="Nova Conexão">
+                        <Plus className="size-4" />
+                    </SidebarMenuButton>
+                  </ConnectionDialog>
+                </SidebarMenuItem>
+                {connections.map(conn => (
+                  <ConnectionItem
+                    key={conn.id}
+                    connection={conn}
+                    isActive={activeConnectionId === conn.id}
+                    onSelect={handleSetActiveConnection}
+                    onDelete={deleteConnection}
+                  />
+                ))}
+              </SidebarMenu>
+            </ScrollArea>
+          </SidebarContent>
+        </Sidebar>
+        
+        {connections.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center text-center">
+              <div className="max-w-md">
+                  <Rocket className="mx-auto h-16 w-16 text-primary/80 mb-6" strokeWidth={1.5} />
+                  <h1 className="text-3xl font-bold tracking-tight">Bem-vindo ao API Insights</h1>
+                  <p className="mt-4 text-lg text-muted-foreground">Para começar, crie sua primeira fonte de dados. Conecte-se a qualquer API e comece a explorar.</p>
+                  <div className="mt-8">
+                      <ConnectionDialog onSave={addConnection}>
+                          <Button variant="primary" size="lg">
+                              <Plus className="mr-2 -ml-1"/>
+                              Criar Nova Fonte de Dados
+                          </Button>
+                      </ConnectionDialog>
+                  </div>
+              </div>
+          </div>
+        ) : (
+          <PageContainer>
+            <Card className="bg-card/80 backdrop-blur-xl">
+                <CardContent className="p-4">
+                    <QueryBuilderForm form={queryForm} onSubmit={handleExecuteQuery} isPending={isPending} activeConnection={activeConnection} />
+                </CardContent>
+            </Card>
 
-                <Card className="flex-1 flex flex-col overflow-hidden bg-card/80 backdrop-blur-xl">
-                    <CardHeader className="flex-row items-center justify-between">
-                    <div>
-                        <CardTitle className="text-2xl">Resultados</CardTitle>
-                        <CardDescription>Dados retornados da sua consulta.</CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <ColumnManagerDrawer 
-                        columns={columns} 
-                        setColumns={setColumns} 
-                        onOrderChange={updateColumnOrder}
-                        />
-                        <ExportDropdown onExport={handleExport} isPending={isPending} />
-                    </div>
-                    </CardHeader>
-                    <CardContent className="flex-1 overflow-auto p-0">
-                    {isPending && !apiResponse && <LoadingState />}
-                    {apiResponse?.error && <ErrorState message={apiResponse.error} />}
-                    {!isPending && !apiResponse && <InitialState />}
-                    {apiResponse?.data && apiResponse.data.length > 0 && (
-                        <DataTable data={apiResponse.data} columns={visibleColumns} />
-                    )}
-                    {apiResponse?.data && apiResponse.data.length === 0 && <p className="p-6">A consulta foi bem-sucedida, mas não retornou dados.</p>}
-                    </CardContent>
-                </Card>
-                </PageContainer>
-            )}
-        </div>
+            <Card className="flex-1 flex flex-col overflow-hidden bg-card/80 backdrop-blur-xl">
+                <CardHeader className="flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="text-2xl">Resultados</CardTitle>
+                    <CardDescription>Dados retornados da sua consulta.</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                    <ColumnManagerDrawer 
+                    columns={columns} 
+                    setColumns={setColumns} 
+                    onOrderChange={updateColumnOrder}
+                    />
+                    <ExportDropdown onExport={handleExport} isPending={isPending} />
+                </div>
+                </CardHeader>
+                <CardContent className="flex-1 overflow-auto p-0">
+                {isPending && !apiResponse && <LoadingState />}
+                {apiResponse?.error && <ErrorState message={apiResponse.error} />}
+                {!isPending && !apiResponse && <InitialState />}
+                {apiResponse?.data && apiResponse.data.length > 0 && (
+                    <DataTable data={apiResponse.data} columns={visibleColumns} />
+                )}
+                {apiResponse?.data && apiResponse.data.length === 0 && <p className="p-6">A consulta foi bem-sucedida, mas não retornou dados.</p>}
+                </CardContent>
+            </Card>
+          </PageContainer>
+        )}
+      </div>
     </SidebarProvider>
   );
 }
