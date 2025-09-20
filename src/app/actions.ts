@@ -22,13 +22,14 @@ export type FetchApiDataOutput = {
 // Helper function to build the final URL based on API type
 function buildUrl(baseUrl: string, path: string, apiType: 'wordpress' | 'generic'): string {
     const trimmedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    const trimmedPath = path.startsWith('/') ? path : `/${path}`;
+    let finalPath = path;
 
-    if (apiType === 'wordpress' && !trimmedPath.startsWith('/wp-json')) {
-        return `${trimmedBaseUrl}/wp-json${trimmedPath}`;
+    if (apiType === 'wordpress' && !finalPath.startsWith('/wp-json')) {
+        const trimmedPath = finalPath.startsWith('/') ? finalPath : `/${finalPath}`;
+        finalPath = `/wp-json${trimmedPath}`;
     }
     
-    return `${trimmedBaseUrl}${trimmedPath}`;
+    return `${trimmedBaseUrl}${finalPath}`;
 }
 
 
