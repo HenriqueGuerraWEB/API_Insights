@@ -73,8 +73,6 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
     const connections = getConnections();
     const connection = connectionId ? connections.find(c => c.id === connectionId) : null;
 
-    let finalUrl = buildUrlWithParams(url, params);
-
     const finalHeaders: Record<string, string> = { "Content-Type": "application/json" };
     
     customHeaders.forEach(h => {
@@ -96,7 +94,9 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
         }
     }
     
-    const response = await fetch(finalUrl.toString(), {
+    const urlWithParams = buildUrlWithParams(url, params);
+
+    const response = await fetch(urlWithParams.toString(), {
       method: method,
       headers: new Headers(finalHeaders),
       body: (method === 'POST' || method === 'PUT') && body ? body : null,
@@ -135,7 +135,7 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
     
     let dataForKeys = dataIsArray ? data : (data && data.data && Array.isArray(data.data)) ? data.data : [data];
 
-    const cacheKey = `ai-suggestions:${finalUrl.origin}${finalUrl.pathname}`;
+    const cacheKey = `ai-suggestions:${urlWithParams.origin}${urlWithParams.pathname}`;
     
     const keys = Array.from(new Set(dataForKeys.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
     
