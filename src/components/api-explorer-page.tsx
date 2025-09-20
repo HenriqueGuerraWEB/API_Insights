@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -71,7 +71,8 @@ import {
   Sparkles,
   Rocket,
   Search,
-  Trash2
+  Trash2,
+  Copy
 } from "lucide-react";
 import { ConnectionDialogContent } from "@/components/connection-dialog";
 import { Sidebar } from "@/components/sidebar";
@@ -94,38 +95,40 @@ export default function ApiExplorerPage() {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
   const [isNewConnectionDialogOpen, setIsNewConnectionDialogOpen] = useState(false);
+  const [isJsonViewerOpen, setIsJsonViewerOpen] = useState(false);
+  const [jsonViewerData, setJsonViewerData] = useState<any>(null);
 
-  const queryForm = useForm<{ method: string, url: string, body: string, params: {key:string, value:string}[], headers: {key:string, value:string}[] }>({
+
+  const form = useForm<{ method: string, url: string, body: string, params: {key:string, value:string}[], headers: {key:string, value:string}[] }>({
     defaultValues: { method: "GET", url: "", body: "", params: [], headers: [] },
   });
   
+  const { control, setValue, watch } = form;
+  const currentUrl = watch('url');
+
   const handleSetActiveConnection = useCallback((id: string | null) => {
       setActiveConnectionId(id);
       const conn = connections.find(c => c.id === id);
-      queryForm.setValue('url', conn?.baseUrl || '');
+      setValue('url', conn?.baseUrl || '');
       setApiResponse(null);
       setDisplayData([]);
       setColumns([]);
-  }, [setActiveConnectionId, queryForm, connections]);
+  }, [setActiveConnectionId, setValue, connections]);
 
 
   useEffect(() => {
     if (!activeConnection && connections.length > 0) {
       handleSetActiveConnection(connections[0].id);
+    } else if (activeConnection && !currentUrl) {
+      setValue('url', activeConnection.baseUrl);
     }
-  }, [connections, activeConnection, handleSetActiveConnection]);
+  }, [connections, activeConnection, handleSetActiveConnection, setValue, currentUrl]);
   
-  useEffect(() => {
-    if(activeConnection) {
-        queryForm.setValue('url', activeConnection.baseUrl);
-    }
-  }, [activeConnection, queryForm]);
-
   const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
   const visibleColumns = useMemo(() => sortedColumns.filter(c => c.visible), [sortedColumns]);
 
   const handleExecuteQuery = () => {
-    queryForm.handleSubmit(async (values) => {
+    form.handleSubmit(async (values) => {
       if (!activeConnection) {
         toast({ variant: "destructive", title: "Nenhuma conexão selecionada." });
         return;
@@ -160,22 +163,22 @@ export default function ApiExplorerPage() {
     if (result.error) {
       setDisplayData([]);
     } else if (result.data) {
-        if (isDiscoveryResponse(result.data)) {
-            setDisplayData([]);
-        } else {
-            const dataArray = Array.isArray(result.data) ? result.data : [result.data];
-            setDisplayData(dataArray);
+      const dataArray = Array.isArray(result.data) ? result.data : [result.data];
+      setDisplayData(dataArray);
 
-            const keys = Array.from(new Set(dataArray.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
+      if (isDiscoveryResponse(result.data)) {
+        setColumns([]);
+      } else {
+        const keys = Array.from(new Set(dataArray.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
 
-            const newColumns = keys.map((key, index) => ({
-              key,
-              friendlyName: result.suggestedNames[key] || key,
-              visible: true,
-              order: index,
-            }));
-            setColumns(newColumns);
-        }
+        const newColumns = keys.map((key, index) => ({
+          key,
+          friendlyName: result.suggestedNames[key] || key,
+          visible: true,
+          order: index,
+        }));
+        setColumns(newColumns);
+      }
     }
   }
 
@@ -231,11 +234,18 @@ export default function ApiExplorerPage() {
   
   const handleExploreEndpoint = (path: string) => {
     if (!activeConnection) return;
+    // This replaces the path in the URL, keeping the base
     const newUrl = new URL(activeConnection.baseUrl);
     newUrl.pathname = path;
-    queryForm.setValue('url', newUrl.toString());
+    setValue('url', newUrl.toString());
     handleExecuteQuery();
   };
+  
+  const handleViewJson = (rowData: any) => {
+    setJsonViewerData(rowData);
+    setIsJsonViewerOpen(true);
+  };
+
 
   const hasConnections = connections.length > 0;
   const showWelcomeScreen = !hasConnections;
@@ -258,6 +268,12 @@ export default function ApiExplorerPage() {
               <ConnectionDialogContent onSave={handleAddNewConnection} onCancel={() => setIsNewConnectionDialogOpen(false)} />
           </DialogContent>
         </Dialog>
+        
+        <Dialog open={isJsonViewerOpen} onOpenChange={setIsJsonViewerOpen}>
+          <DialogContent className="max-w-3xl">
+              <JsonViewerDialog data={jsonViewerData} />
+          </DialogContent>
+        </Dialog>
 
         {showWelcomeScreen ? (
           <div className="flex-1 flex items-center justify-center text-center p-4">
@@ -277,7 +293,7 @@ export default function ApiExplorerPage() {
           <PageContainer>
             <Card className="bg-card/80 backdrop-blur-xl">
                 <CardContent className="p-4">
-                    <QueryBuilderForm form={queryForm} onSubmit={handleExecuteQuery} isPending={isPending} />
+                    <QueryBuilderForm form={form} onSubmit={handleExecuteQuery} isPending={isPending} />
                 </CardContent>
             </Card>
 
@@ -290,7 +306,9 @@ export default function ApiExplorerPage() {
                     <CardDescription>
                         {isDiscoveryMode 
                             ? `Endpoints encontrados na sua API.`
-                            : 'Dados retornados da sua consulta.'
+                            : displayData.length > 0
+                              ? 'Dados retornados da sua consulta.'
+                              : 'Execute uma consulta para ver os resultados.'
                         }
                     </CardDescription>
                 </div>
@@ -320,9 +338,11 @@ export default function ApiExplorerPage() {
                               />
                         )}
                         {showDataTable && (
-                            <DataTable data={displayData} columns={visibleColumns} onRowDelete={handleRowDelete}/>
+                            <DataTable data={displayData} columns={visibleColumns} onRowDelete={handleRowDelete} onViewJson={handleViewJson}/>
                         )}
-                        {(!apiResponse?.data || (Array.isArray(apiResponse.data) && apiResponse.data.length === 0)) && !isPending && !isDiscoveryMode && <InitialState />}
+                        {(!apiResponse || (!apiResponse.data && !apiResponse.error)) && !isPending && <InitialState />}
+                        
+                        {!isPending && apiResponse && !apiResponse.error && !isDiscoveryMode && displayData.length === 0 && <EmptyState />}
                     </>
                 )}
                 
@@ -412,7 +432,7 @@ function QueryBuilderForm({ form, onSubmit, isPending }: { form: any, onSubmit: 
   );
 }
 
-function DataTable({ data, columns, onRowDelete }: { data: any[]; columns: Column[]; onRowDelete: (rowIndex: number) => void }) {
+function DataTable({ data, columns, onRowDelete, onViewJson }: { data: any[]; columns: Column[]; onRowDelete: (rowIndex: number) => void; onViewJson: (rowData: any) => void; }) {
   const headers = useMemo(() => columns.map(col => <TableHead key={col.key} className="uppercase tracking-wider font-medium text-muted-foreground">{col.friendlyName}</TableHead>), [columns]);
   
   const rows = useMemo(() => data.map((row, rowIndex) => (
@@ -422,13 +442,18 @@ function DataTable({ data, columns, onRowDelete }: { data: any[]; columns: Colum
           {typeof row[col.key] === 'object' && row[col.key] !== null ? JSON.stringify(row[col.key]) : String(row[col.key] ?? '')}
         </TableCell>
       ))}
-       <TableCell className="text-right w-10">
-          <Button variant="ghost" size="icon" className="size-8 opacity-0 group-hover:opacity-100" onClick={() => onRowDelete(rowIndex)}>
-              <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />
-          </Button>
+       <TableCell className="text-right w-24">
+          <div className="flex justify-end items-center opacity-0 group-hover:opacity-100 gap-1">
+             <Button variant="ghost" size="icon" className="size-8" onClick={() => onViewJson(row)}>
+                <Eye className="size-4 text-muted-foreground hover:text-foreground" />
+            </Button>
+            <Button variant="ghost" size="icon" className="size-8" onClick={() => onRowDelete(rowIndex)}>
+                <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />
+            </Button>
+          </div>
       </TableCell>
     </TableRow>
-  )), [data, columns, onRowDelete]);
+  )), [data, columns, onRowDelete, onViewJson]);
 
   return (
     <ScrollArea className="h-full">
@@ -529,7 +554,19 @@ const InitialState = () => (
        </div>
       <h3 className="text-2xl font-bold tracking-tight">Pronto para a Ação</h3>
       <p className="mt-2 max-w-sm text-muted-foreground">
-        Selecione uma fonte de dados, insira um endpoint e execute uma consulta. Os resultados aparecerão aqui.
+        Selecione uma fonte de dados e execute uma consulta para ver os resultados.
+      </p>
+    </div>
+);
+
+const EmptyState = () => (
+    <div className="flex flex-col items-center justify-center h-full text-center p-8">
+       <div className="mb-4 text-muted-foreground/50">
+          <Search className="size-16" strokeWidth={1.5}/>
+       </div>
+      <h3 className="text-2xl font-bold tracking-tight">Nenhum Resultado</h3>
+      <p className="mt-2 max-w-sm text-muted-foreground">
+        A sua consulta foi executada com sucesso, mas não retornou nenhum dado.
       </p>
     </div>
 );
@@ -539,18 +576,28 @@ function DiscoveryView({ data, onExplore, namespace, connection }: { data: any, 
     const schema = Array.isArray(data) ? data[0] : data;
     const routes = schema?.routes ? Object.entries(schema.routes) : [];
   
+    const getRelativePath = (fullPath: string) => {
+        if (!namespace) return fullPath;
+        const basePath = `/${namespace}`;
+        if (fullPath.startsWith(basePath)) {
+            return fullPath.substring(basePath.length) || '/';
+        }
+        return fullPath;
+    }
+
     return (
       <ScrollArea className="h-full">
         <div className="p-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {routes.length > 0 ? routes.map(([path, routeInfo]: [string, any]) => {
-            return (
+             const displayPath = getRelativePath(path);
+             return (
                 <Card key={path} className="bg-muted/30">
                   <CardHeader>
-                    <CardTitle className="text-lg font-code break-all">{path}</CardTitle>
-                    <div className="flex gap-2 pt-2">
-                      {routeInfo.methods.map((method: string, index: number) => (
-                         <Badge key={`${path}-${method}-${index}`} variant={method === 'GET' ? 'secondary' : 'outline'}>{method}</Badge>
-                      ))}
+                    <CardTitle className="text-lg font-code break-all">{displayPath}</CardTitle>
+                     <div className="flex gap-2 pt-2">
+                        {routeInfo.methods.map((method: string, index: number) => (
+                           <Badge key={`${path}-${method}-${index}`} variant={method === 'GET' ? 'secondary' : 'outline'}>{method}</Badge>
+                        ))}
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -565,4 +612,39 @@ function DiscoveryView({ data, onExplore, namespace, connection }: { data: any, 
         </div>
       </ScrollArea>
     );
-  }
+}
+
+function JsonViewerDialog({ data }: { data: any }) {
+    const { toast } = useToast();
+    const jsonString = useMemo(() => JSON.stringify(data, null, 2), [data]);
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(jsonString).then(() => {
+            toast({ title: "Copiado!", description: "Os dados JSON foram copiados para a área de transferência." });
+        }, (err) => {
+            toast({ variant: "destructive", title: "Falha ao copiar", description: "Não foi possível copiar os dados." });
+            console.error('Could not copy text: ', err);
+        });
+    };
+
+    if (!data) return null;
+
+    return (
+        <>
+            <DialogHeader>
+                <DialogTitle>Visualizador JSON</DialogTitle>
+            </DialogHeader>
+            <div className="relative">
+                <ScrollArea className="h-[60vh] w-full rounded-md border bg-muted/30 p-4">
+                    <pre><code className="font-code text-sm">{jsonString}</code></pre>
+                </ScrollArea>
+            </div>
+            <DialogFooter>
+                <Button onClick={handleCopy} variant="secondary">
+                    <Copy className="mr-2 size-4" />
+                    Copiar
+                </Button>
+            </DialogFooter>
+        </>
+    );
+}
