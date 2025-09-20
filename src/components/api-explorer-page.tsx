@@ -5,16 +5,7 @@
 import { useState, useMemo, useTransition, useCallback, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
-import { v4 as uuidv4 } from "uuid";
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarHeader,
-  SidebarContent,
-  SidebarMenuItem,
-  SidebarMenu,
-  SidebarMenuButton,
-} from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,11 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-    Dialog,
-    DialogContent,
-    DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -68,7 +55,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import useLocalStorage from "@/hooks/use-local-storage";
+import { useConnections, type Connection } from "@/hooks/use-connections";
 import { fetchApiData, exportData, FetchApiDataOutput } from "@/app/actions";
 import {
   Plus,
@@ -89,17 +76,7 @@ import {
 } from "lucide-react";
 import { ConnectionDialogContent } from "@/components/connection-dialog";
 import { ConnectionItem } from "@/components/connection-item";
-
-
-export type Connection = {
-  id: string;
-  name: string;
-  baseUrl: string;
-  authMethod: "none" | "bearer" | "apiKey";
-  authToken?: string;
-  apiKeyHeader?: string;
-  apiKeyValue?: string;
-};
+import { Sidebar } from "@/components/sidebar";
 
 const PageContainer = ({ children }: { children: React.ReactNode }) => (
   <div className="flex-1 flex flex-col gap-4 p-4">
@@ -107,57 +84,33 @@ const PageContainer = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-
 // Main Component
 export default function ApiExplorerPage() {
-  const [connections, setConnections] = useLocalStorage<Connection[]>("api-connections", []);
-  const [activeConnectionId, setActiveConnectionId] = useLocalStorage<string | null>("active-connection-id", null);
+  const { connections, addConnection, deleteConnection, activeConnection, setActiveConnectionId } = useConnections();
   const [apiResponse, setApiResponse] = useState<FetchApiDataOutput | null>(null);
   const [columns, setColumns] = useState<Column[]>([]);
-  const [isNewConnectionDialogOpen, setIsNewConnectionDialogOpen] = useState(false);
-  
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
   const queryForm = useForm<{ method: string, path: string, body: string, params: {key:string, value:string}[], headers: {key:string, value:string}[] }>({
     defaultValues: { method: "GET", path: "", body: "", params: [], headers: [] },
   });
-
-  const activeConnection = useMemo(
-    () => connections.find(c => c.id === activeConnectionId),
-    [connections, activeConnectionId]
-  );
   
-  const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
-  const visibleColumns = useMemo(() => sortedColumns.filter(c => c.visible), [sortedColumns]);
-  
-  const handleSetActiveConnection = useCallback((id: string) => {
-    setActiveConnectionId(id);
-  }, [setActiveConnectionId]);
-
   useEffect(() => {
-    if (activeConnection) {
-        queryForm.setValue('path', new URL(activeConnection.baseUrl).pathname); 
+    if (activeConnection?.baseUrl) {
+      try {
+        const url = new URL(activeConnection.baseUrl);
+        queryForm.setValue('path', url.pathname);
+      } catch (e) {
+        queryForm.setValue('path', '/');
+      }
+    } else {
+        queryForm.setValue('path', '/');
     }
   }, [activeConnection, queryForm]);
 
-  const addConnection = useCallback((conn: Omit<Connection, "id">) => {
-    const newConnection = { ...conn, id: uuidv4() };
-    setConnections(prev => [...prev, newConnection]);
-    setActiveConnectionId(newConnection.id);
-    setIsNewConnectionDialogOpen(false);
-  }, [setConnections, setActiveConnectionId]);
-
-  const deleteConnection = useCallback((id: string) => {
-    setConnections(prev => {
-      const newConnections = prev.filter(c => c.id !== id);
-      if (activeConnectionId === id) {
-        setActiveConnectionId(newConnections.length > 0 ? newConnections[0].id : null);
-      }
-      return newConnections;
-    });
-  }, [activeConnectionId, setConnections, setActiveConnectionId]);
-
+  const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
+  const visibleColumns = useMemo(() => sortedColumns.filter(c => c.visible), [sortedColumns]);
 
   const handleExecuteQuery = queryForm.handleSubmit(async (values) => {
     if (!activeConnection) {
@@ -246,49 +199,22 @@ export default function ApiExplorerPage() {
   return (
     <SidebarProvider>
       <div className="flex h-screen bg-background text-foreground">
-        <Sidebar>
-          <SidebarHeader className="p-4 flex justify-center">
-            <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20">
-                <Rocket className="size-5 text-primary" />
-            </div>
-          </SidebarHeader>
-          <SidebarContent className="p-0">
-            <ScrollArea className="h-full">
-              <SidebarMenu className="p-4 flex flex-col items-center gap-2">
-                <SidebarMenuItem className="w-full">
-                   <Dialog open={isNewConnectionDialogOpen} onOpenChange={setIsNewConnectionDialogOpen}>
-                    <DialogTrigger asChild>
-                        <SidebarMenuButton className="w-full justify-center" tooltip="Nova Conexão">
-                            <Plus className="size-4" />
-                        </SidebarMenuButton>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <ConnectionDialogContent onSave={addConnection} onCancel={() => setIsNewConnectionDialogOpen(false)} />
-                    </DialogContent>
-                   </Dialog>
-                </SidebarMenuItem>
-                {connections.map(conn => (
-                  <ConnectionItem
-                    key={conn.id}
-                    connection={conn}
-                    isActive={activeConnectionId === conn.id}
-                    onSelect={handleSetActiveConnection}
-                    onDelete={deleteConnection}
-                  />
-                ))}
-              </SidebarMenu>
-            </ScrollArea>
-          </SidebarContent>
-        </Sidebar>
+        <Sidebar 
+          connections={connections} 
+          activeConnectionId={activeConnection?.id || null}
+          onAddConnection={addConnection}
+          onDeleteConnection={deleteConnection}
+          onSelectConnection={setActiveConnectionId}
+        />
         
         {connections.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-center">
+          <div className="flex-1 flex items-center justify-center text-center p-4">
               <div className="max-w-md">
                   <Rocket className="mx-auto h-16 w-16 text-primary/80 mb-6" strokeWidth={1.5} />
                   <h1 className="text-3xl font-bold tracking-tight">Bem-vindo ao API Insights</h1>
                   <p className="mt-4 text-lg text-muted-foreground">Para começar, crie sua primeira fonte de dados. Conecte-se a qualquer API e comece a explorar.</p>
                   <div className="mt-8">
-                      <Dialog open={isNewConnectionDialogOpen} onOpenChange={setIsNewConnectionDialogOpen}>
+                      <Dialog>
                         <DialogTrigger asChild>
                             <Button variant="primary" size="lg">
                                 <Plus className="mr-2 -ml-1"/>
@@ -296,7 +222,7 @@ export default function ApiExplorerPage() {
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
-                            <ConnectionDialogContent onSave={addConnection} onCancel={() => setIsNewConnectionDialogOpen(false)} />
+                            <ConnectionDialogContent onSave={addConnection} onCancel={() => {}} />
                         </DialogContent>
                       </Dialog>
                   </div>
@@ -352,7 +278,7 @@ type Column = {
 
 // Sub-components
 
-function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { form: any, onSubmit: () => void, isPending: boolean, activeConnection: Connection | undefined }) {
+function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { form: any, onSubmit: () => void, isPending: boolean, activeConnection: Connection | undefined | null }) {
   const { fields: params, append: appendParam, remove: removeParam } = useFieldArray({ control: form.control, name: "params" });
   const { fields: headers, append: appendHeader, remove: removeHeader } = useFieldArray({ control: form.control, name: "headers" });
   
@@ -526,7 +452,3 @@ const InitialState = () => (
       </p>
     </div>
   );
-
-
-
-    

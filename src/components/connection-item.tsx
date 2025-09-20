@@ -8,7 +8,18 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Database, Trash2 } from "lucide-react";
-import type { Connection } from "./api-explorer-page";
+
+// This is now a "dumb" component. It just receives data and functions.
+// It does not know about the global state.
+export type Connection = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  authMethod: "none" | "bearer" | "apiKey";
+  authToken?: string;
+  apiKeyHeader?: string;
+  apiKeyValue?: string;
+};
 
 export function ConnectionItem({
   connection,
@@ -21,9 +32,12 @@ export function ConnectionItem({
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+
+  // These callbacks are now stable because the onSelect and onDelete props
+  // passed from the parent component are stable (wrapped in useCallback).
   const handleDelete = useCallback(
     (e: React.MouseEvent) => {
-      e.stopPropagation();
+      e.stopPropagation(); // Prevent the onSelect from firing.
       onDelete(connection.id);
     },
     [connection.id, onDelete]
@@ -54,5 +68,3 @@ export function ConnectionItem({
     </SidebarMenuItem>
   );
 }
-
-    
