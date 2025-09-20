@@ -79,6 +79,7 @@ import {
 import { ConnectionDialogContent } from "@/components/connection-dialog";
 import { Sidebar } from "@/components/sidebar";
 import { Badge } from "./ui/badge";
+import { cn } from "@/lib/utils";
 
 const PageContainer = ({ children }: { children: React.ReactNode }) => (
   <div className="flex-1 flex flex-col gap-4 p-4 md:p-6">
