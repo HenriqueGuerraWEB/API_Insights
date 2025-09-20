@@ -23,22 +23,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+
 import {
   Form,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -94,9 +85,10 @@ import {
   Rocket
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ConnectionDialog } from "@/components/connection-dialog";
 
 // Types
-type Connection = {
+export type Connection = {
   id: string;
   name: string;
   baseUrl: string;
@@ -113,29 +105,11 @@ type Column = {
   order: number;
 };
 
-const connectionSchema = z.object({
-  name: z.string().min(1, "O nome é obrigatório."),
-  baseUrl: z.string().min(1, "A URL base é obrigatória."),
-  authMethod: z.enum(["none", "bearer", "apiKey"]),
-  authToken: z.string().optional(),
-  apiKeyHeader: z.string().optional(),
-  apiKeyValue: z.string().optional(),
-}).refine(data => data.authMethod !== 'bearer' || (data.authToken && data.authToken.length > 0), {
-  message: "O Bearer Token é obrigatório.",
-  path: ["authToken"],
-}).refine(data => data.authMethod !== 'apiKey' || (data.apiKeyHeader && data.apiKeyHeader.length > 0), {
-  message: "O nome do header da API Key é obrigatório.",
-  path: ["apiKeyHeader"],
-}).refine(data => data.authMethod !== 'apiKey' || (data.apiKeyValue && data.apiKeyValue.length > 0), {
-  message: "O valor da API Key é obrigatório.",
-  path: ["apiKeyValue"],
-});
-
 
 const EtherealCard = ({ className, ...props }: React.ComponentProps<typeof Card>) => (
     <Card 
       className={cn(
-        "bg-white/5 border border-white/10 shadow-lg backdrop-blur-2xl rounded-2xl",
+        "bg-black/5 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-lg shadow-black/20",
         className
       )} 
       {...props} 
@@ -265,9 +239,9 @@ export default function ApiExplorerPage() {
   
   return (
     <SidebarProvider>
-      <Sidebar>
+    <Sidebar variant="inset" collapsible="icon">
         <SidebarHeader className="p-4 flex justify-center">
-           <div className="w-8 h-8 flex items-center justify-center">
+           <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20">
             <Rocket className="size-5 text-primary" />
           </div>
         </SidebarHeader>
@@ -283,6 +257,7 @@ export default function ApiExplorerPage() {
                     onClick={() => setActiveConnectionId(conn.id)}
                     isActive={activeConnectionId === conn.id}
                     className="justify-center"
+                    tooltip={{children: conn.name, side: "right"}}
                   >
                     <Database className="size-4" />
                   </SidebarMenuButton>
@@ -306,7 +281,7 @@ export default function ApiExplorerPage() {
           <EtherealCard className="flex-1 flex flex-col overflow-hidden">
             <CardHeader className="flex-row items-center justify-between">
               <div>
-                <CardTitle>Resultados</CardTitle>
+                <CardTitle className="text-2xl">Resultados</CardTitle>
                 <CardDescription>Dados retornados da sua consulta.</CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -337,74 +312,6 @@ export default function ApiExplorerPage() {
 }
 
 // Sub-components
-function ConnectionDialog({ onSave }: { onSave: (data: Omit<Connection, 'id'>) => void }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const form = useForm<z.infer<typeof connectionSchema>>({
-    resolver: zodResolver(connectionSchema),
-    defaultValues: {
-      name: "",
-      baseUrl: "",
-      authMethod: "none",
-      authToken: "",
-      apiKeyHeader: "",
-      apiKeyValue: "",
-    },
-  });
-  const authMethod = form.watch("authMethod");
-
-  const handleSubmit = form.handleSubmit((data) => {
-    onSave(data);
-    form.reset();
-    setIsOpen(false);
-  });
-
-  return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="primary" className="w-full justify-center">
-          <Plus className="size-4" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <Form {...form}>
-          <form onSubmit={handleSubmit}>
-            <DialogHeader>
-              <DialogTitle>Nova Fonte de Dados</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <FormField name="name" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>Nome</FormLabel><FormControl><Input {...field} placeholder="API de Clientes" /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField name="baseUrl" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>URL Base</FormLabel><FormControl><Input {...field} placeholder="https://api.example.com/v1" /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField name="authMethod" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>Autenticação</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent><SelectItem value="none">Nenhuma</SelectItem><SelectItem value="bearer">Bearer Token</SelectItem><SelectItem value="apiKey">API Key</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-              )} />
-              {authMethod === "bearer" && <FormField name="authToken" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>Bearer Token</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
-              )} />}
-              {authMethod === "apiKey" && (
-                <>
-                  <FormField name="apiKeyHeader" control={form.control} render={({ field }) => (
-                    <FormItem><FormLabel>Nome do Header</FormLabel><FormControl><Input {...field} placeholder="X-API-KEY" /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <FormField name="apiKeyValue" control={form.control} render={({ field }) => (
-                    <FormItem><FormLabel>Valor da Key</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
-                </>
-              )}
-            </div>
-            <DialogFooter>
-              <DialogClose asChild><Button variant="ghost">Cancelar</Button></DialogClose>
-              <Button type="submit" variant="primary">Salvar</Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { form: any, onSubmit: () => void, isPending: boolean, activeConnection: Connection | undefined }) {
   const { fields: params, append: appendParam, remove: removeParam } = useFieldArray({ control: form.control, name: "params" });
@@ -573,11 +480,9 @@ const InitialState = () => (
        <div className="mb-4 text-primary/50">
           <Rocket className="size-16" strokeWidth={1.5}/>
        </div>
-      <h3 className="text-xl font-medium">Bem-vindo ao API Insights</h3>
+      <h3 className="text-2xl font-bold tracking-tight">Bem-vindo ao API Insights</h3>
       <p className="mt-2 max-w-sm text-muted-foreground">
-        Conecte-se a uma fonte de dados, execute uma consulta e os resultados aparecerão aqui. Seu assistente de IA está pronto para ajudar.
+        Conecte-se a uma fonte de dados, execute uma consulta e os resultados aparecerão aqui.
       </p>
     </div>
   );
-
-    
