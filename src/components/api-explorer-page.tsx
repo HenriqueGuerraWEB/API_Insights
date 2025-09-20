@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition, useCallback } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -13,7 +13,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarInset,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -107,13 +106,16 @@ type Column = {
 
 
 const EtherealCard = ({ className, ...props }: React.ComponentProps<typeof Card>) => (
-    <Card 
-      className={cn(
-        "bg-black/5 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-lg shadow-black/20",
-        className
-      )} 
-      {...props} 
-    />
+    <div className="relative group">
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-blue-500 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200 animate-tilt"></div>
+        <Card
+            className={cn(
+                "relative bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-lg shadow-black/20",
+                className
+            )}
+            {...props}
+        />
+    </div>
 );
 
 // Main Component
@@ -237,6 +239,13 @@ export default function ApiExplorerPage() {
     }
   };
   
+  const handleSetActiveConnection = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    const id = e.currentTarget.dataset.id;
+    if (id) {
+      setActiveConnectionId(id);
+    }
+  }, [setActiveConnectionId]);
+
   return (
     <SidebarProvider>
       <Sidebar variant="inset" collapsible="icon">
@@ -254,7 +263,8 @@ export default function ApiExplorerPage() {
               {connections.map(conn => (
                 <SidebarMenuItem key={conn.id} className="w-full">
                   <SidebarMenuButton 
-                    onClick={() => setActiveConnectionId(conn.id)}
+                    data-id={conn.id}
+                    onClick={handleSetActiveConnection}
                     isActive={activeConnectionId === conn.id}
                     className="justify-center"
                     tooltip={conn.name}
@@ -270,8 +280,7 @@ export default function ApiExplorerPage() {
           </ScrollArea>
         </SidebarContent>
       </Sidebar>
-      <SidebarInset>
-        <div className="flex flex-col h-screen p-4 gap-4">
+      <div className="flex flex-col h-screen p-4 gap-4 md:ml-12">
           <EtherealCard>
               <CardContent className="p-4">
                 <QueryBuilderForm form={queryForm} onSubmit={handleExecuteQuery} isPending={isPending} activeConnection={activeConnection} />
@@ -306,7 +315,6 @@ export default function ApiExplorerPage() {
             </CardContent>
           </EtherealCard>
         </div>
-      </SidebarInset>
     </SidebarProvider>
   );
 }
@@ -486,5 +494,4 @@ const InitialState = () => (
       </p>
     </div>
   );
-
     
