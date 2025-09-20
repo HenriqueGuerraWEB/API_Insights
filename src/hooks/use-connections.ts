@@ -13,7 +13,7 @@ const uuidv4 = () => {
 
 export type Auth = 
     | { type: 'none' }
-    | { type: 'basic'; username: string; password?: string }
+    | { type: 'basic'; username?: string; password?: string }
     | { type: 'bearer'; token?: string }
     | { type: 'apiKey'; headerName?: string; apiKey?: string }
     | { type: 'wooCommerce'; consumerKey?: string; consumerSecret?: string };
@@ -32,23 +32,25 @@ const ACTIVE_CONNECTION_ID_STORAGE_KEY = "active-connection-id-v2";
 export function useConnections() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [activeConnectionId, setActiveConnectionIdState] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     try {
       const savedConnections = window.localStorage.getItem(CONNECTIONS_STORAGE_KEY);
-      if (savedConnections) {
-        const parsedConnections = JSON.parse(savedConnections);
-        setConnections(parsedConnections);
-      }
+      const savedConnectionsParsed = savedConnections ? JSON.parse(savedConnections) : [];
+      setConnections(savedConnectionsParsed);
       
       const savedActiveId = window.localStorage.getItem(ACTIVE_CONNECTION_ID_STORAGE_KEY);
       if (savedActiveId && savedActiveId !== "null" && savedActiveId !== "undefined") {
          setActiveConnectionIdState(JSON.parse(savedActiveId));
       } else {
-         setActiveConnectionIdState(null);
+         const defaultActiveId = savedConnectionsParsed.length > 0 ? savedConnectionsParsed[0].id : null;
+         setActiveConnectionIdState(defaultActiveId);
+         if (defaultActiveId) {
+            window.localStorage.setItem(ACTIVE_CONNECTION_ID_STORAGE_KEY, JSON.stringify(defaultActiveId));
+         }
       }
-
     } catch (error) {
       console.error("Failed to load connections from localStorage", error);
       toast({ variant: "destructive", title: "Erro ao Carregar Dados", description: "Não foi possível carregar as conexões salvas."})
@@ -56,6 +58,8 @@ export function useConnections() {
       window.localStorage.removeItem(ACTIVE_CONNECTION_ID_STORAGE_KEY);
       setConnections([]);
       setActiveConnectionIdState(null);
+    } finally {
+        setIsLoading(false);
     }
   }, [toast]);
 
@@ -106,7 +110,7 @@ export function useConnections() {
 
   const activeConnection = useMemo(
     () => {
-        if (!activeConnectionId) return null;
+        if (isLoading || !activeConnectionId) return null;
         let found = connections.find(c => c.id === activeConnectionId);
 
         if (!found && connections.length > 0) {
@@ -119,7 +123,7 @@ export function useConnections() {
 
         return found;
     },
-    [connections, activeConnectionId, setActiveConnectionId]
+    [connections, activeConnectionId, setActiveConnectionId, isLoading]
   );
 
   return {
@@ -129,5 +133,6 @@ export function useConnections() {
     activeConnection,
     activeConnectionId,
     setActiveConnectionId,
+    isLoading,
   };
 }

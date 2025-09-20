@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useTransition, useCallback, useEffect } from "react";
@@ -74,7 +75,8 @@ import {
   Search,
   Trash2,
   Copy,
-  Download
+  Download,
+  Loader2
 } from "lucide-react";
 import { ConnectionDialogContent } from "@/components/connection-dialog";
 import { Sidebar } from "@/components/sidebar";
@@ -89,7 +91,7 @@ const PageContainer = ({ children }: { children: React.ReactNode }) => (
 
 // Main Component
 export default function ApiExplorerPage() {
-  const { connections, addConnection, deleteConnection, activeConnection, setActiveConnectionId } = useConnections();
+  const { connections, addConnection, deleteConnection, activeConnection, setActiveConnectionId, isLoading: connectionsLoading } = useConnections();
   
   const [apiResponse, setApiResponse] = useState<FetchApiDataOutput | null>(null);
   const [displayData, setDisplayData] = useState<any[]>([]);
@@ -292,7 +294,7 @@ export default function ApiExplorerPage() {
 
 
   const hasConnections = connections.length > 0;
-  const showWelcomeScreen = !hasConnections;
+  const showWelcomeScreen = !connectionsLoading && !hasConnections;
   const isDiscoveryMode = !!apiResponse?.isDiscovery;
   const showDataTable = displayData.length > 0 && !isDiscoveryMode;
 
@@ -328,7 +330,11 @@ export default function ApiExplorerPage() {
           </DialogContent>
         </Dialog>
 
-        {showWelcomeScreen ? (
+        {connectionsLoading ? (
+            <div className="flex-1 flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        ) : showWelcomeScreen ? (
           <div className="flex-1 flex items-center justify-center text-center p-4">
               <div className="max-w-md">
                   <Rocket className="mx-auto h-16 w-16 text-primary/80 mb-6" strokeWidth={1.5} />
