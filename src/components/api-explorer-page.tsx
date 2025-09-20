@@ -85,27 +85,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConnectionDialog } from "@/components/connection-dialog";
-
-// Types
-export type Connection = {
-  id: string;
-  name: string;
-  baseUrl: string;
-  authMethod: "none" | "bearer" | "apiKey";
-  authToken?: string;
-  apiKeyHeader?: string;
-  apiKeyValue?: string;
-};
-
-type Column = {
-  key: string;
-  friendlyName: string;
-  visible: boolean;
-  order: number;
-};
+import type { Connection } from "./connection-dialog";
 
 const PageContainer = ({ children }: { children: React.ReactNode }) => (
-    <div className="flex flex-col h-screen p-4 gap-4 md:ml-12">
+    <div className="flex flex-col h-screen p-4 gap-4 md:ml-20">
         {children}
     </div>
 );
@@ -116,7 +99,6 @@ export default function ApiExplorerPage() {
   const [activeConnectionId, setActiveConnectionId] = useLocalStorage<string | null>("active-connection-id", null);
   const [apiResponse, setApiResponse] = useState<FetchApiDataOutput | null>(null);
   const [columns, setColumns] = useState<Column[]>([]);
-  const [isColumnManagerOpen, setColumnManagerOpen] = useState(false);
   
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
@@ -216,22 +198,22 @@ export default function ApiExplorerPage() {
     
     setColumns(newColumns.map((col, idx) => ({ ...col, order: idx })));
   };
-
-
-  const addConnection = (conn: Omit<Connection, "id">) => {
-    const newConnection = { ...conn, id: uuidv4() };
-    const newConnections = [...connections, newConnection];
-    setConnections(newConnections);
-    setActiveConnectionId(newConnection.id);
-  };
   
-  const deleteConnection = (id: string) => {
-    const newConnections = connections.filter(c => c.id !== id);
-    setConnections(newConnections);
-    if (activeConnectionId === id) {
-      setActiveConnectionId(newConnections.length > 0 ? newConnections[0].id : null);
-    }
-  };
+  const addConnection = useCallback((conn: Omit<Connection, "id">) => {
+    const newConnection = { ...conn, id: uuidv4() };
+    setConnections(prev => [...prev, newConnection]);
+    setActiveConnectionId(newConnection.id);
+  }, [setConnections, setActiveConnectionId]);
+
+  const deleteConnection = useCallback((id: string) => {
+    setConnections(prev => {
+      const newConnections = prev.filter(c => c.id !== id);
+      if (activeConnectionId === id) {
+        setActiveConnectionId(newConnections.length > 0 ? newConnections[0].id : null);
+      }
+      return newConnections;
+    });
+  }, [activeConnectionId, setConnections, setActiveConnectionId]);
   
   const handleSetActiveConnection = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     const id = e.currentTarget.dataset.id;
@@ -244,7 +226,7 @@ export default function ApiExplorerPage() {
     <SidebarProvider>
       <Sidebar variant="inset" collapsible="icon">
         <SidebarHeader className="p-4 flex justify-center">
-           <div className="w-8 h-8 flex items-center justify-center">
+           <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20">
             <Rocket className="size-5 text-primary" />
           </div>
         </SidebarHeader>
@@ -259,7 +241,7 @@ export default function ApiExplorerPage() {
                  </ConnectionDialog>
               </SidebarMenuItem>
               {connections.map(conn => (
-                <SidebarMenuItem key={conn.id} className="w-full">
+                <SidebarMenuItem key={conn.id} className="w-full relative group/item">
                   <SidebarMenuButton 
                     data-id={conn.id}
                     onClick={handleSetActiveConnection}
@@ -269,7 +251,11 @@ export default function ApiExplorerPage() {
                   >
                     <Database className="size-4" />
                   </SidebarMenuButton>
-                  <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-7 w-7" onClick={(e) => { e.stopPropagation(); deleteConnection(conn.id); }}>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute right-[-35px] top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover/item:opacity-100 transition-opacity" 
+                    onClick={(e) => { e.stopPropagation(); deleteConnection(conn.id); }}>
                     <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />
                   </Button>
                 </SidebarMenuItem>
@@ -313,8 +299,6 @@ export default function ApiExplorerPage() {
                   <ColumnManagerDrawer 
                   columns={columns} 
                   setColumns={setColumns} 
-                  isOpen={isColumnManagerOpen} 
-                  setIsOpen={setColumnManagerOpen}
                   onOrderChange={updateColumnOrder}
                   />
                   <ExportDropdown onExport={handleExport} isPending={isPending} />
@@ -335,6 +319,14 @@ export default function ApiExplorerPage() {
     </SidebarProvider>
   );
 }
+
+// Types
+type Column = {
+  key: string;
+  friendlyName: string;
+  visible: boolean;
+  order: number;
+};
 
 // Sub-components
 
@@ -419,7 +411,8 @@ function DataTable({ data, columns }: { data: any[]; columns: Column[] }) {
   );
 }
 
-function ColumnManagerDrawer({ columns, setColumns, isOpen, setIsOpen, onOrderChange }: { columns: Column[], setColumns: (cols: Column[]) => void, isOpen: boolean, setIsOpen: (open: boolean) => void, onOrderChange: (index: number, direction: 'up' | 'down') => void }) {
+function ColumnManagerDrawer({ columns, setColumns, onOrderChange }: { columns: Column[], setColumns: (cols: Column[]) => void, onOrderChange: (index: number, direction: 'up' | 'down') => void }) {
+  const [isOpen, setIsOpen] = useState(false);
   
   const handleVisibilityChange = (key: string, visible: boolean) => {
     setColumns(columns.map(c => c.key === key ? { ...c, visible } : c));
