@@ -64,7 +64,16 @@ export function ConnectionDialogContent({ onSave, onCancel }: { onSave: (data: O
       name: "",
       baseUrl: "",
       apiType: "Generic",
-      auth: { type: "none" },
+      auth: {
+        type: "none",
+        username: "",
+        password: "",
+        token: "",
+        headerName: "",
+        apiKey: "",
+        consumerKey: "",
+        consumerSecret: "",
+      },
     },
   });
   
