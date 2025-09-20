@@ -137,9 +137,7 @@ export default function ApiExplorerPage() {
 
   useEffect(() => {
     if (activeConnection) {
-        queryForm.setValue('path', activeConnection.baseUrl ? new URL(activeConnection.baseUrl).pathname : ''); 
-    } else {
-        queryForm.setValue('path', '');
+        queryForm.setValue('path', new URL(activeConnection.baseUrl).pathname); 
     }
   }, [activeConnection, queryForm]);
 
