@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useTransition, useCallback, useEffect } from "react";
@@ -106,19 +107,25 @@ export default function ApiExplorerPage() {
   
   const handleSetActiveConnection = useCallback((id: string | null) => {
     setActiveConnectionId(id);
-    // Reset path when changing connection
-    queryForm.setValue('path', '/');
-  }, [setActiveConnectionId, queryForm]);
+    if (activeConnection) {
+        // When switching, if there's already an active connection,
+        // re-fetch the base schema for the new connection.
+        queryForm.setValue('path', '/');
+        handleExecuteQuery(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setActiveConnectionId, queryForm, activeConnection]);
 
   useEffect(() => {
     if (activeConnection) {
-        setViewMode('data-explorer'); // Default to data explorer
-        // Auto-fetch schema on new active connection
-        handleExecuteQuery();
-    } else if (connections.length > 0 && !activeConnection) {
-        setViewMode('welcome');
+      if (!apiResponse) { // Only auto-fetch if there's no data
+        setViewMode('data-explorer');
+        handleExecuteQuery(true);
+      }
+    } else if (connections.length > 0) {
+      setViewMode('welcome');
     } else { // No connections
-        setViewMode('welcome');
+      setViewMode('welcome');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConnection, connections]);
@@ -188,7 +195,7 @@ export default function ApiExplorerPage() {
         } else {
             setViewMode('data-explorer');
             setDisplayData(result.data);
-            setApiNamespace(null);
+            setApiNamespace(null); // Not in a namespace view
             const newColumns = Object.keys(result.suggestedNames).map((key, index) => ({
               key,
               friendlyName: result.suggestedNames[key] || key,
@@ -251,31 +258,23 @@ export default function ApiExplorerPage() {
   };
   
   const handleExploreEndpoint = (path: string) => {
-    let relativePath = path;
-
-    // If the base URL contains a namespace, make the path relative.
-    if (activeConnection && activeConnection.baseUrl.includes('/wp-json/')) {
-        try {
-            const baseUrlObject = new URL(activeConnection.baseUrl);
-            const baseUrlPath = baseUrlObject.pathname;
-            if(path.startsWith(baseUrlPath)) {
-                relativePath = path.substring(baseUrlPath.length);
-            }
-        } catch (e) {
-            // Could not parse baseUrl, proceed with the original path
-        }
-    } else if (apiNamespace && path.startsWith(apiNamespace)) {
-        // Fallback for older logic if needed
-        relativePath = path.substring(apiNamespace.length);
-    }
-    
-    queryForm.setValue('path', relativePath || '/');
-    handleExecuteQuery();
+      let relativePath = path;
+      if (apiNamespace && path.startsWith(apiNamespace)) {
+          relativePath = path.substring(apiNamespace.length) || '/';
+      }
+      queryForm.setValue('path', relativePath);
+      handleExecuteQuery();
   };
   
   const getDisplayBaseUrl = () => {
-    if (!activeConnection) return 'Selecione uma conexão';
-    return activeConnection.baseUrl;
+      if (!activeConnection) return 'Selecione uma conexão';
+      let displayUrl = activeConnection.baseUrl;
+      if (activeConnection.apiType === 'wordpress' && apiNamespace) {
+          displayUrl = `${displayUrl}/wp-json${apiNamespace}`;
+      } else if (apiNamespace) {
+          displayUrl = `${displayUrl}${apiNamespace}`;
+      }
+      return displayUrl.endsWith('/') ? displayUrl.slice(0, -1) : displayUrl;
   }
 
   return (
@@ -577,8 +576,8 @@ function DiscoveryView({ data, onExplore }: { data: any, onExplore: (path: strin
               <CardHeader>
                 <CardTitle className="text-lg font-code break-all">{path}</CardTitle>
                 <div className="flex gap-2 pt-2">
-                  {routeInfo.methods.map((method: string) => (
-                     <Badge key={method} variant={method === 'GET' ? 'secondary' : 'outline'}>{method}</Badge>
+                  {routeInfo.methods.map((method: string, index: number) => (
+                     <Badge key={`${method}-${index}`} variant={method === 'GET' ? 'secondary' : 'outline'}>{method}</Badge>
                   ))}
                 </div>
               </CardHeader>
@@ -594,4 +593,5 @@ function DiscoveryView({ data, onExplore }: { data: any, onExplore: (path: strin
       </ScrollArea>
     );
   }
+
 
