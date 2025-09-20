@@ -23,7 +23,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
+import {
+    Dialog,
+    DialogContent,
+    DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -69,7 +73,6 @@ import { fetchApiData, exportData, FetchApiDataOutput } from "@/app/actions";
 import {
   Plus,
   Database,
-  Trash2,
   AlertCircle,
   Play,
   FileDown,
@@ -84,8 +87,7 @@ import {
   Sparkles,
   Rocket
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { ConnectionDialog } from "@/components/connection-dialog";
+import { ConnectionDialogContent } from "@/components/connection-dialog";
 import { ConnectionItem } from "@/components/connection-item";
 
 
@@ -112,6 +114,7 @@ export default function ApiExplorerPage() {
   const [activeConnectionId, setActiveConnectionId] = useLocalStorage<string | null>("active-connection-id", null);
   const [apiResponse, setApiResponse] = useState<FetchApiDataOutput | null>(null);
   const [columns, setColumns] = useState<Column[]>([]);
+  const [isNewConnectionDialogOpen, setIsNewConnectionDialogOpen] = useState(false);
   
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
@@ -134,17 +137,17 @@ export default function ApiExplorerPage() {
 
   useEffect(() => {
     if (activeConnection) {
-        queryForm.setValue('path', ''); 
+        queryForm.setValue('path', activeConnection.baseUrl ? new URL(activeConnection.baseUrl).pathname : ''); 
+    } else {
+        queryForm.setValue('path', '');
     }
   }, [activeConnection, queryForm]);
 
   const addConnection = useCallback((conn: Omit<Connection, "id">) => {
-    setConnections(prev => {
-        const newConnection = { ...conn, id: uuidv4() };
-        const updatedConnections = [...prev, newConnection];
-        setActiveConnectionId(newConnection.id);
-        return updatedConnections;
-    });
+    const newConnection = { ...conn, id: uuidv4() };
+    setConnections(prev => [...prev, newConnection]);
+    setActiveConnectionId(newConnection.id);
+    setIsNewConnectionDialogOpen(false);
   }, [setConnections, setActiveConnectionId]);
 
   const deleteConnection = useCallback((id: string) => {
@@ -255,11 +258,16 @@ export default function ApiExplorerPage() {
             <ScrollArea className="h-full">
               <SidebarMenu className="p-4 flex flex-col items-center gap-2">
                 <SidebarMenuItem className="w-full">
-                  <ConnectionDialog onSave={addConnection}>
-                    <SidebarMenuButton className="w-full justify-center" tooltip="Nova Conexão">
-                        <Plus className="size-4" />
-                    </SidebarMenuButton>
-                  </ConnectionDialog>
+                   <Dialog open={isNewConnectionDialogOpen} onOpenChange={setIsNewConnectionDialogOpen}>
+                    <DialogTrigger asChild>
+                        <SidebarMenuButton className="w-full justify-center" tooltip="Nova Conexão">
+                            <Plus className="size-4" />
+                        </SidebarMenuButton>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <ConnectionDialogContent onSave={addConnection} onCancel={() => setIsNewConnectionDialogOpen(false)} />
+                    </DialogContent>
+                   </Dialog>
                 </SidebarMenuItem>
                 {connections.map(conn => (
                   <ConnectionItem
@@ -282,12 +290,17 @@ export default function ApiExplorerPage() {
                   <h1 className="text-3xl font-bold tracking-tight">Bem-vindo ao API Insights</h1>
                   <p className="mt-4 text-lg text-muted-foreground">Para começar, crie sua primeira fonte de dados. Conecte-se a qualquer API e comece a explorar.</p>
                   <div className="mt-8">
-                      <ConnectionDialog onSave={addConnection}>
-                          <Button variant="primary" size="lg">
-                              <Plus className="mr-2 -ml-1"/>
-                              Criar Nova Fonte de Dados
-                          </Button>
-                      </ConnectionDialog>
+                      <Dialog open={isNewConnectionDialogOpen} onOpenChange={setIsNewConnectionDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="primary" size="lg">
+                                <Plus className="mr-2 -ml-1"/>
+                                Criar Nova Fonte de Dados
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <ConnectionDialogContent onSave={addConnection} onCancel={() => setIsNewConnectionDialogOpen(false)} />
+                        </DialogContent>
+                      </Dialog>
                   </div>
               </div>
           </div>
@@ -353,7 +366,7 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
             <FormItem><FormLabel>Método</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem><SelectItem value="PUT">PUT</SelectItem><SelectItem value="DELETE">DELETE</SelectItem></SelectContent></Select></FormItem>
           )} />
           <FormField name="path" control={form.control} render={({ field }) => (
-            <FormItem className="flex-1"><FormLabel>Endpoint</FormLabel><FormControl><div className="flex items-center"><span className="p-2 rounded-l-md bg-muted text-muted-foreground text-sm">{activeConnection?.baseUrl || 'Selecione uma conexão'}</span><Input {...field} placeholder="/users" className="rounded-l-none" /></div></FormControl></FormItem>
+            <FormItem className="flex-1"><FormLabel>Endpoint</FormLabel><FormControl><div className="flex items-center"><span className="p-2 rounded-l-md bg-muted text-muted-foreground text-sm">{activeConnection?.baseUrl ? new URL(activeConnection.baseUrl).origin : 'Selecione uma conexão'}</span><Input {...field} placeholder="/users" className="rounded-l-none" /></div></FormControl></FormItem>
           )} />
           <Button type="submit" variant="primary" disabled={isPending || !activeConnection} className="h-10">
             {isPending ? <Sparkles className="mr-2 size-4 animate-spin" /> : <Play className="mr-2 size-4" />}
@@ -368,7 +381,7 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
                   <div key={field.id} className="flex gap-2 mb-2">
                     <Input {...form.register(`params.${index}.key`)} placeholder="key" className="h-8" />
                     <Input {...form.register(`params.${index}.value`)} placeholder="value" className="h-8" />
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeParam(index)}><Trash2 className="size-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeParam(index)}><Plus className="size-4 rotate-45" /></Button>
                   </div>
                 ))}
               </ScrollArea>
@@ -381,7 +394,7 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
                    <div key={field.id} className="flex gap-2 mb-2">
                     <Input {...form.register(`headers.${index}.key`)} placeholder="key" className="h-8"/>
                     <Input {...form.register(`headers.${index}.value`)} placeholder="value" className="h-8"/>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeHeader(index)}><Trash2 className="size-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeHeader(index)}><Plus className="size-4 rotate-45" /></Button>
                   </div>
                 ))}
               </ScrollArea>
@@ -516,3 +529,6 @@ const InitialState = () => (
     </div>
   );
 
+
+
+    

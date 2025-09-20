@@ -1,18 +1,13 @@
 
 "use client";
 
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
-  Dialog,
-  DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -35,7 +30,7 @@ import type { Connection } from "./api-explorer-page";
 
 const connectionSchema = z.object({
   name: z.string().min(1, "O nome é obrigatório."),
-  baseUrl: z.string().min(1, "A URL base é obrigatória."),
+  baseUrl: z.string().url("URL inválida.").min(1, "A URL base é obrigatória."),
   authMethod: z.enum(["none", "bearer", "apiKey"]),
   authToken: z.string().optional(),
   apiKeyHeader: z.string().optional(),
@@ -52,8 +47,7 @@ const connectionSchema = z.object({
 });
 
 
-export function ConnectionDialog({ onSave, children }: { onSave: (data: Omit<Connection, 'id'>) => void, children: React.ReactNode }) {
-  const [isOpen, setIsOpen] = useState(false);
+export function ConnectionDialogContent({ onSave, onCancel }: { onSave: (data: Omit<Connection, 'id'>) => void, onCancel: () => void }) {
   const form = useForm<z.infer<typeof connectionSchema>>({
     resolver: zodResolver(connectionSchema),
     defaultValues: {
@@ -69,59 +63,46 @@ export function ConnectionDialog({ onSave, children }: { onSave: (data: Omit<Con
 
   const handleSubmit = form.handleSubmit((data) => {
     onSave(data);
-    form.reset({
-      name: "",
-      baseUrl: "",
-      authMethod: "none",
-      authToken: "",
-      apiKeyHeader: "",
-      apiKeyValue: "",
-    });
-    setIsOpen(false);
+    form.reset();
   });
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
-      <DialogContent>
-        <Form {...form}>
-          <form onSubmit={handleSubmit}>
-            <DialogHeader>
-              <DialogTitle>Nova Fonte de Dados</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <FormField name="name" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>Nome</FormLabel><FormControl><Input {...field} placeholder="API de Clientes" /></FormControl><FormMessage /></FormItem>
+    <Form {...form}>
+      <form onSubmit={handleSubmit}>
+        <DialogHeader>
+          <DialogTitle>Nova Fonte de Dados</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <FormField name="name" control={form.control} render={({ field }) => (
+            <FormItem><FormLabel>Nome</FormLabel><FormControl><Input {...field} placeholder="API de Clientes" /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField name="baseUrl" control={form.control} render={({ field }) => (
+            <FormItem><FormLabel>URL Base</FormLabel><FormControl><Input {...field} placeholder="https://api.example.com/v1" /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField name="authMethod" control={form.control} render={({ field }) => (
+            <FormItem><FormLabel>Autenticação</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent><SelectItem value="none">Nenhuma</SelectItem><SelectItem value="bearer">Bearer Token</SelectItem><SelectItem value="apiKey">API Key</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+          )} />
+          {authMethod === "bearer" && <FormField name="authToken" control={form.control} render={({ field }) => (
+            <FormItem><FormLabel>Bearer Token</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
+          )} />}
+          {authMethod === "apiKey" && (
+            <>
+              <FormField name="apiKeyHeader" control={form.control} render={({ field }) => (
+                <FormItem><FormLabel>Nome do Header</FormLabel><FormControl><Input {...field} placeholder="X-API-KEY" /></FormControl><FormMessage /></FormItem>
               )} />
-              <FormField name="baseUrl" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>URL Base</FormLabel><FormControl><Input {...field} placeholder="https://api.example.com/v1" /></FormControl><FormMessage /></FormItem>
+              <FormField name="apiKeyValue" control={form.control} render={({ field }) => (
+                <FormItem><FormLabel>Valor da Key</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
-              <FormField name="authMethod" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>Autenticação</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent><SelectItem value="none">Nenhuma</SelectItem><SelectItem value="bearer">Bearer Token</SelectItem><SelectItem value="apiKey">API Key</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-              )} />
-              {authMethod === "bearer" && <FormField name="authToken" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>Bearer Token</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
-              )} />}
-              {authMethod === "apiKey" && (
-                <>
-                  <FormField name="apiKeyHeader" control={form.control} render={({ field }) => (
-                    <FormItem><FormLabel>Nome do Header</FormLabel><FormControl><Input {...field} placeholder="X-API-KEY" /></FormControl><FormMessage /></FormItem>
-                  )} />
-                  <FormField name="apiKeyValue" control={form.control} render={({ field }) => (
-                    <FormItem><FormLabel>Valor da Key</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
-                  )} />
-                </>
-              )}
-            </div>
-            <DialogFooter>
-              <DialogClose asChild><Button variant="ghost">Cancelar</Button></DialogClose>
-              <Button type="submit" variant="primary">Salvar</Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+            </>
+          )}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onCancel}>Cancelar</Button>
+          <Button type="submit" variant="primary">Salvar</Button>
+        </DialogFooter>
+      </form>
+    </Form>
   );
 }
+
+    
