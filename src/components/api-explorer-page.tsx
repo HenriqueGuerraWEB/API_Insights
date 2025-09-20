@@ -85,13 +85,62 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConnectionDialog } from "@/components/connection-dialog";
-import type { Connection } from "./connection-dialog";
+
+
+export type Connection = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  authMethod: "none" | "bearer" | "apiKey";
+  authToken?: string;
+  apiKeyHeader?: string;
+  apiKeyValue?: string;
+};
+
 
 const PageContainer = ({ children }: { children: React.ReactNode }) => (
     <div className="flex flex-col h-screen p-4 gap-4 md:ml-20">
         {children}
     </div>
 );
+
+function ConnectionItem({ 
+  connection, 
+  isActive, 
+  onSelect, 
+  onDelete 
+}: { 
+  connection: Connection; 
+  isActive: boolean;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(connection.id);
+  };
+  
+  return (
+    <SidebarMenuItem key={connection.id} className="w-full relative group/item">
+      <SidebarMenuButton
+        onClick={() => onSelect(connection.id)}
+        isActive={isActive}
+        className="justify-center"
+        tooltip={connection.name}
+      >
+        <Database className="size-4" />
+      </SidebarMenuButton>
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        className="absolute right-[-35px] top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover/item:opacity-100 transition-opacity" 
+        onClick={handleDelete}>
+        <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />
+      </Button>
+    </SidebarMenuItem>
+  );
+}
+
 
 // Main Component
 export default function ApiExplorerPage() {
@@ -200,9 +249,12 @@ export default function ApiExplorerPage() {
   };
   
   const addConnection = useCallback((conn: Omit<Connection, "id">) => {
-    const newConnection = { ...conn, id: uuidv4() };
-    setConnections(prev => [...prev, newConnection]);
-    setActiveConnectionId(newConnection.id);
+    setConnections(prev => {
+        const newConnection = { ...conn, id: uuidv4() };
+        const updatedConnections = [...prev, newConnection];
+        setActiveConnectionId(newConnection.id);
+        return updatedConnections;
+    });
   }, [setConnections, setActiveConnectionId]);
 
   const deleteConnection = useCallback((id: string) => {
@@ -215,11 +267,8 @@ export default function ApiExplorerPage() {
     });
   }, [activeConnectionId, setConnections, setActiveConnectionId]);
   
-  const handleSetActiveConnection = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    const id = e.currentTarget.dataset.id;
-    if (id) {
-      setActiveConnectionId(id);
-    }
+  const handleSetActiveConnection = useCallback((id: string) => {
+    setActiveConnectionId(id);
   }, [setActiveConnectionId]);
 
   return (
@@ -241,24 +290,13 @@ export default function ApiExplorerPage() {
                  </ConnectionDialog>
               </SidebarMenuItem>
               {connections.map(conn => (
-                <SidebarMenuItem key={conn.id} className="w-full relative group/item">
-                  <SidebarMenuButton 
-                    data-id={conn.id}
-                    onClick={handleSetActiveConnection}
-                    isActive={activeConnectionId === conn.id}
-                    className="justify-center"
-                    tooltip={conn.name}
-                  >
-                    <Database className="size-4" />
-                  </SidebarMenuButton>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="absolute right-[-35px] top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover/item:opacity-100 transition-opacity" 
-                    onClick={(e) => { e.stopPropagation(); deleteConnection(conn.id); }}>
-                    <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />
-                  </Button>
-                </SidebarMenuItem>
+                <ConnectionItem
+                  key={conn.id}
+                  connection={conn}
+                  isActive={activeConnectionId === conn.id}
+                  onSelect={handleSetActiveConnection}
+                  onDelete={deleteConnection}
+                />
               ))}
             </SidebarMenu>
           </ScrollArea>
@@ -504,3 +542,5 @@ const InitialState = () => (
       </p>
     </div>
   );
+
+    
