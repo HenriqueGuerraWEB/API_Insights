@@ -17,13 +17,12 @@ export type Connection = {
   id: string;
   name: string;
   baseUrl: string;
-  apiType: "wordpress" | "generic";
-  authMethod: "none" | "bearer" | "apiKey" | "wooCommerce";
+  authMethod: "none" | "bearer" | "apiKey" | "basic";
   authToken?: string;
   apiKeyHeader?: string;
   apiKeyValue?: string;
-  wooConsumerKey?: string;
-  wooConsumerSecret?: string;
+  basicUser?: string;
+  basicPass?: string;
 };
 
 const CONNECTIONS_STORAGE_KEY = "api-connections";
@@ -39,13 +38,8 @@ export function useConnections() {
     try {
       const savedConnections = window.localStorage.getItem(CONNECTIONS_STORAGE_KEY);
       if (savedConnections) {
-        // Migration: Ensure old connections have a default apiType
         const parsedConnections = JSON.parse(savedConnections);
-        const migratedConnections = parsedConnections.map((conn: any) => ({
-            ...conn,
-            apiType: conn.apiType || 'generic' 
-        }));
-        setConnections(migratedConnections);
+        setConnections(parsedConnections);
       }
       
       const savedActiveId = window.localStorage.getItem(ACTIVE_CONNECTION_ID_STORAGE_KEY);
@@ -135,5 +129,3 @@ export function useConnections() {
     setActiveConnectionId,
   };
 }
-
-    

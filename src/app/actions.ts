@@ -8,7 +8,7 @@ import { z } from 'zod';
 
 const fetchApiDataInputSchema = z.object({
   connection: z.custom<Connection>(),
-  path: z.string(),
+  url: z.string().url(),
   method: z.string(),
   params: z.array(z.object({ key: z.string(), value: z.string() })),
   headers: z.array(z.object({ key: z.string(), value: z.string() })),
@@ -22,30 +22,17 @@ export type FetchApiDataOutput = {
   namespace?: string | null;
 };
 
-function buildUrl(base: string, path: string, params: {key: string, value: string}[], connection: Connection): string {
-    let finalUrl = base.endsWith('/') ? base.slice(0, -1) : base;
-    finalUrl += path.startsWith('/') ? path : `/${path}`;
-    
-    const queryParams = new URLSearchParams();
 
-    // Add params from the form
+function buildUrlWithParams(url: string, params: {key: string, value: string}[]): string {
+    const urlObject = new URL(url);
     params.forEach(p => {
-        if (p.key) queryParams.append(p.key, p.value);
+        if (p.key) {
+            urlObject.searchParams.append(p.key, p.value);
+        }
     });
-
-    // Add auth params if needed
-    if (connection.authMethod === 'wooCommerce' && connection.wooConsumerKey && connection.wooConsumerSecret) {
-        queryParams.append('consumer_key', connection.wooConsumerKey);
-        queryParams.append('consumer_secret', connection.wooConsumerSecret);
-    }
-    
-    const queryString = queryParams.toString();
-    if (queryString) {
-        return `${finalUrl}?${queryString}`;
-    }
-
-    return finalUrl;
+    return urlObject.toString();
 }
+
 
 const aiNameSuggestionCache: Record<string, Record<string, string>> = {};
 
@@ -81,10 +68,10 @@ async function getOrFetchAiSuggestions(cacheKey: string, keys: string[]): Promis
 export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema>): Promise<FetchApiDataOutput> {
   try {
     const validatedInput = fetchApiDataInputSchema.parse(input);
-    const { connection, path, method, params, headers: customHeaders, body } = validatedInput;
+    const { connection, url, method, params, headers: customHeaders, body } = validatedInput;
 
-    const url = buildUrl(connection.baseUrl, path, params, connection);
-
+    const finalUrl = buildUrlWithParams(url, params);
+    
     const finalHeaders: Record<string, string> = { "Content-Type": "application/json" };
     
     // Add custom headers from the form first
@@ -97,10 +84,12 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
         finalHeaders['Authorization'] = `Bearer ${connection.authToken}`;
     } else if (connection.authMethod === 'apiKey' && connection.apiKeyHeader && connection.apiKeyValue) {
         finalHeaders[connection.apiKeyHeader] = connection.apiKeyValue;
+    } else if (connection.authMethod === 'basic' && connection.basicUser && connection.basicPass) {
+        const basicAuth = Buffer.from(`${connection.basicUser}:${connection.basicPass}`).toString('base64');
+        finalHeaders['Authorization'] = `Basic ${basicAuth}`;
     }
-    // WooCommerce auth is handled via query params in buildUrl
 
-    const response = await fetch(url, {
+    const response = await fetch(finalUrl, {
       method: method,
       headers: new Headers(finalHeaders),
       body: (method === 'POST' || method === 'PUT') && body ? body : null,

@@ -31,13 +31,12 @@ import type { Connection } from "@/hooks/use-connections";
 const connectionSchema = z.object({
   name: z.string().min(1, "O nome é obrigatório."),
   baseUrl: z.string().url("URL inválida.").min(1, "A URL base é obrigatória."),
-  apiType: z.enum(["wordpress", "generic"]),
-  authMethod: z.enum(["none", "bearer", "apiKey", "wooCommerce"]),
+  authMethod: z.enum(["none", "bearer", "apiKey", "basic"]),
   authToken: z.string().optional(),
   apiKeyHeader: z.string().optional(),
   apiKeyValue: z.string().optional(),
-  wooConsumerKey: z.string().optional(),
-  wooConsumerSecret: z.string().optional(),
+  basicUser: z.string().optional(),
+  basicPass: z.string().optional(),
 }).refine(data => data.authMethod !== 'bearer' || (data.authToken && data.authToken.length > 0), {
   message: "O Bearer Token é obrigatório.",
   path: ["authToken"],
@@ -47,12 +46,12 @@ const connectionSchema = z.object({
 }).refine(data => data.authMethod !== 'apiKey' || (data.apiKeyValue && data.apiKeyValue.length > 0), {
   message: "O valor da API Key é obrigatório.",
   path: ["apiKeyValue"],
-}).refine(data => data.authMethod !== 'wooCommerce' || (data.wooConsumerKey && data.wooConsumerKey.length > 0), {
-  message: "A Consumer Key é obrigatória.",
-  path: ["wooConsumerKey"],
-}).refine(data => data.authMethod !== 'wooCommerce' || (data.wooConsumerSecret && data.wooConsumerSecret.length > 0), {
-  message: "A Consumer Secret é obrigatória.",
-  path: ["wooConsumerSecret"],
+}).refine(data => data.authMethod !== 'basic' || (data.basicUser && data.basicUser.length > 0), {
+  message: "O usuário é obrigatório.",
+  path: ["basicUser"],
+}).refine(data => data.authMethod !== 'basic' || (data.basicPass && data.basicPass.length > 0), {
+  message: "A senha é obrigatória.",
+  path: ["basicPass"],
 });
 
 
@@ -62,13 +61,12 @@ export function ConnectionDialogContent({ onSave, onCancel }: { onSave: (data: O
     defaultValues: {
       name: "",
       baseUrl: "",
-      apiType: "generic",
       authMethod: "none",
       authToken: "",
       apiKeyHeader: "",
       apiKeyValue: "",
-      wooConsumerKey: "",
-      wooConsumerSecret: "",
+      basicUser: "",
+      basicPass: "",
     },
   });
   const authMethod = form.watch("authMethod");
@@ -91,11 +89,9 @@ export function ConnectionDialogContent({ onSave, onCancel }: { onSave: (data: O
           <FormField name="baseUrl" control={form.control} render={({ field }) => (
             <FormItem><FormLabel>URL Base</FormLabel><FormControl><Input {...field} placeholder="https://api.example.com" /></FormControl><FormMessage /></FormItem>
           )} />
-          <FormField name="apiType" control={form.control} render={({ field }) => (
-            <FormItem><FormLabel>Tipo de API</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent><SelectItem value="generic">Genérica (REST)</SelectItem><SelectItem value="wordpress">WordPress</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-          )} />
+          
           <FormField name="authMethod" control={form.control} render={({ field }) => (
-            <FormItem><FormLabel>Autenticação</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent><SelectItem value="none">Nenhuma</SelectItem><SelectItem value="bearer">Bearer Token</SelectItem><SelectItem value="apiKey">API Key (Header)</SelectItem><SelectItem value="wooCommerce">WooCommerce API</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+            <FormItem><FormLabel>Autenticação</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent><SelectItem value="none">Nenhuma</SelectItem><SelectItem value="basic">WordPress Basic Auth</SelectItem><SelectItem value="bearer">Bearer Token</SelectItem><SelectItem value="apiKey">API Key (Header)</SelectItem></SelectContent></Select><FormMessage /></FormItem>
           )} />
           
           {authMethod === "bearer" && <FormField name="authToken" control={form.control} render={({ field }) => (
@@ -113,13 +109,13 @@ export function ConnectionDialogContent({ onSave, onCancel }: { onSave: (data: O
             </>
           )}
 
-          {authMethod === "wooCommerce" && (
+          {authMethod === "basic" && (
             <>
-              <FormField name="wooConsumerKey" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>Consumer Key</FormLabel><FormControl><Input {...field} placeholder="ck_..." /></FormControl><FormMessage /></FormItem>
+              <FormField name="basicUser" control={form.control} render={({ field }) => (
+                <FormItem><FormLabel>Usuário</FormLabel><FormControl><Input {...field} placeholder="user" /></FormControl><FormMessage /></FormItem>
               )} />
-              <FormField name="wooConsumerSecret" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>Consumer Secret</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
+              <FormField name="basicPass" control={form.control} render={({ field }) => (
+                <FormItem><FormLabel>Senha de Aplicação</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
             </>
           )}

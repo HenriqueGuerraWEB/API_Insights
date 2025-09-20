@@ -76,7 +76,6 @@ import {
 import { ConnectionDialogContent } from "@/components/connection-dialog";
 import { Sidebar } from "@/components/sidebar";
 import { Badge } from "./ui/badge";
-import { cn } from "@/lib/utils";
 
 const PageContainer = ({ children }: { children: React.ReactNode }) => (
   <div className="flex-1 flex flex-col gap-4 p-4">
@@ -96,26 +95,31 @@ export default function ApiExplorerPage() {
   const { toast } = useToast();
   const [isNewConnectionDialogOpen, setIsNewConnectionDialogOpen] = useState(false);
 
-  const queryForm = useForm<{ method: string, path: string, body: string, params: {key:string, value:string}[], headers: {key:string, value:string}[] }>({
-    defaultValues: { method: "GET", path: "", body: "", params: [], headers: [] },
+  const queryForm = useForm<{ method: string, url: string, body: string, params: {key:string, value:string}[], headers: {key:string, value:string}[] }>({
+    defaultValues: { method: "GET", url: "", body: "", params: [], headers: [] },
   });
   
   const handleSetActiveConnection = useCallback((id: string | null) => {
       setActiveConnectionId(id);
-      queryForm.setValue('path', '/');
+      const conn = connections.find(c => c.id === id);
+      queryForm.setValue('url', conn?.baseUrl || '');
       setApiResponse(null);
       setDisplayData([]);
       setColumns([]);
-  }, [setActiveConnectionId, queryForm]);
+  }, [setActiveConnectionId, queryForm, connections]);
 
 
   useEffect(() => {
     if (!activeConnection && connections.length > 0) {
       handleSetActiveConnection(connections[0].id);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connections, activeConnection]);
-
+  }, [connections, activeConnection, handleSetActiveConnection]);
+  
+  useEffect(() => {
+    if(activeConnection) {
+        queryForm.setValue('url', activeConnection.baseUrl);
+    }
+  }, [activeConnection, queryForm]);
 
   const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
   const visibleColumns = useMemo(() => sortedColumns.filter(c => c.visible), [sortedColumns]);
@@ -132,14 +136,14 @@ export default function ApiExplorerPage() {
         
         const result = await fetchApiData({
           connection: activeConnection,
-          path: values.path,
+          url: values.url,
           method: values.method,
           body: values.body,
           params: values.params,
           headers: values.headers,
         });
         
-        handleApiResponse(result, values.path);
+        handleApiResponse(result);
       });
     })();
   }
@@ -150,7 +154,7 @@ export default function ApiExplorerPage() {
     return firstItem && typeof firstItem === 'object' && 'routes' in firstItem && typeof firstItem.routes === 'object';
   }
 
-  const handleApiResponse = (result: FetchApiDataOutput, queriedPath: string) => {
+  const handleApiResponse = (result: FetchApiDataOutput) => {
     setApiResponse(result);
 
     if (result.error) {
@@ -227,7 +231,9 @@ export default function ApiExplorerPage() {
   
   const handleExploreEndpoint = (path: string) => {
     if (!activeConnection) return;
-    queryForm.setValue('path', path);
+    const newUrl = new URL(activeConnection.baseUrl);
+    newUrl.pathname = path;
+    queryForm.setValue('url', newUrl.toString());
     handleExecuteQuery();
   };
 
@@ -271,7 +277,7 @@ export default function ApiExplorerPage() {
           <PageContainer>
             <Card className="bg-card/80 backdrop-blur-xl">
                 <CardContent className="p-4">
-                    <QueryBuilderForm form={queryForm} onSubmit={handleExecuteQuery} isPending={isPending} activeConnection={activeConnection} />
+                    <QueryBuilderForm form={queryForm} onSubmit={handleExecuteQuery} isPending={isPending} />
                 </CardContent>
             </Card>
 
@@ -339,7 +345,7 @@ type Column = {
 
 // Sub-components
 
-function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { form: any, onSubmit: () => void, isPending: boolean, activeConnection: Connection | undefined | null }) {
+function QueryBuilderForm({ form, onSubmit, isPending }: { form: any, onSubmit: () => void, isPending: boolean }) {
   const { fields: params, append: appendParam, remove: removeParam } = useFieldArray({ control: form.control, name: "params" });
   const { fields: headers, append: appendHeader, remove: removeHeader } = useFieldArray({ control: form.control, name: "headers" });
   
@@ -350,29 +356,19 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
           <FormField name="method" control={form.control} render={({ field }) => (
             <FormItem><FormLabel>Método</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem><SelectItem value="PUT">PUT</SelectItem><SelectItem value="DELETE">DELETE</SelectItem></SelectContent></Select></FormItem>
           )} />
-          <FormField name="path" control={form.control} render={({ field }) => (
+          <FormField name="url" control={form.control} render={({ field }) => (
             <FormItem className="flex-1">
                <FormLabel>URL</FormLabel>
-               <div className="flex items-center">
-                  {activeConnection && (
-                    <span className="text-sm text-muted-foreground bg-muted px-3 h-10 flex items-center rounded-l-md border border-r-0 border-input truncate max-w-xs">
-                      {activeConnection.baseUrl}
-                    </span>
-                  )}
-                  <FormControl>
-                      <Input 
+               <FormControl>
+                    <Input 
                         {...field} 
-                        placeholder="/caminho/do/endpoint" 
-                        className={cn(
-                          "font-code",
-                          activeConnection ? "rounded-l-none" : ""
-                        )}
+                        placeholder="https://sua-api.com/endpoint" 
+                        className="font-code"
                       />
-                  </FormControl>
-               </div>
+                </FormControl>
             </FormItem>
           )} />
-          <Button type="submit" variant="primary" disabled={isPending || !activeConnection} className="h-10">
+          <Button type="submit" variant="primary" disabled={isPending} className="h-10">
             {isPending ? <Sparkles className="mr-2 size-4 animate-spin" /> : <Play className="mr-2 size-4" />}
             Executar
           </Button>
