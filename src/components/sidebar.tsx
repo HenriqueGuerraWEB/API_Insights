@@ -50,9 +50,9 @@ export function Sidebar({
         <ScrollArea className="h-full">
           <SidebarMenu className="p-4 flex flex-col items-center gap-2">
             <SidebarMenuItem className="w-full">
-               <Link href="/reports" passHref legacyBehavior>
-                  <SidebarMenuButton asChild tooltip="Relatórios" className="justify-center">
-                    <a><LineChart /></a>
+               <Link href="/reports">
+                  <SidebarMenuButton tooltip="Relatórios" className="justify-center">
+                    <LineChart />
                   </SidebarMenuButton>
                 </Link>
             </SidebarMenuItem>
@@ -84,4 +84,3 @@ export function Sidebar({
     </SidebarPrimitive>
   );
 }
-

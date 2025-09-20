@@ -38,15 +38,14 @@ export function ConnectionItem({
 
   return (
     <SidebarMenuItem className="w-full relative group/item">
-      <Link href="/" passHref legacyBehavior>
+      <Link href="/" passHref>
         <SidebarMenuButton
           onClick={handleSelect}
           isActive={isActive}
           className="justify-center"
           tooltip={connection.name}
-          asChild
         >
-          <a><Database className="size-4" /></a>
+          <Database className="size-4" />
         </SidebarMenuButton>
       </Link>
       <Button
