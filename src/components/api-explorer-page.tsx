@@ -106,49 +106,22 @@ export default function ApiExplorerPage() {
   
   const handleSetActiveConnection = useCallback((id: string | null) => {
     setActiveConnectionId(id);
-  }, [setActiveConnectionId]);
+    // Reset path when changing connection
+    queryForm.setValue('path', '/');
+  }, [setActiveConnectionId, queryForm]);
 
   useEffect(() => {
     if (activeConnection) {
         setViewMode('data-explorer'); // Default to data explorer
+        // Auto-fetch schema on new active connection
+        handleExecuteQuery();
     } else if (connections.length > 0 && !activeConnection) {
-        // This case is handled inside useConnections hook, but as a fallback
-        // we could select the first one. Let's keep it clean for now.
+        setViewMode('welcome');
     } else { // No connections
         setViewMode('welcome');
     }
-  }, [activeConnection, connections]);
-
-
-  // Effect to fetch initial schema or data when a connection becomes active
-  useEffect(() => {
-    if (activeConnection) {
-        // Set initial path for discovery
-        const initialPath = activeConnection.apiType === 'wordpress' ? '/' : '/';
-        queryForm.setValue('path', initialPath);
-        
-        startTransition(async () => {
-            const finalHeaders: Record<string, string> = { "Content-Type": "application/json" };
-            if (activeConnection.authMethod === 'bearer' && activeConnection.authToken) {
-                finalHeaders['Authorization'] = `Bearer ${activeConnection.authToken}`;
-            } else if (activeConnection.authMethod === 'apiKey' && activeConnection.apiKeyHeader && activeConnection.apiKeyValue) {
-                finalHeaders[activeConnection.apiKeyHeader] = activeConnection.apiKeyValue;
-            }
-
-            const result = await fetchApiData({
-                url: activeConnection.baseUrl,
-                apiType: activeConnection.apiType,
-                path: initialPath,
-                method: 'GET',
-                headers: finalHeaders,
-                body: null,
-            });
-
-            handleApiResponse(result);
-        });
-    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeConnection]); // Rerun only when activeConnection changes
+  }, [activeConnection, connections]);
 
 
   const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
@@ -167,7 +140,6 @@ export default function ApiExplorerPage() {
       values.params.forEach(p => p.key && queryParams.append(p.key, p.value));
       const queryString = queryParams.toString();
       
-      // Append query string to path if it exists
       let pathWithParams = values.path;
       if (queryString) {
           pathWithParams = pathWithParams.includes('?') 
@@ -206,11 +178,12 @@ export default function ApiExplorerPage() {
       setApiNamespace(null);
     } else if (result.data) {
         const firstItem = Array.isArray(result.data) ? result.data[0] : result.data;
-        const isSchema = firstItem && typeof firstItem === 'object' && ('routes' in firstItem || 'namespace' in firstItem);
+        // A schema response from WordPress has a 'routes' key.
+        const isSchema = firstItem && typeof firstItem === 'object' && 'routes' in firstItem;
         
         if (isSchema) {
             setViewMode('discovery');
-            setDisplayData([]);
+            setDisplayData(result.data); // Keep the schema data for the discovery view
             setApiNamespace(result.namespace);
         } else {
             setViewMode('data-explorer');
@@ -278,19 +251,30 @@ export default function ApiExplorerPage() {
   };
   
   const handleExploreEndpoint = (path: string) => {
-    let finalPath = path;
-    if (apiNamespace && path.startsWith(apiNamespace)) {
-        finalPath = path.substring(apiNamespace.length);
+    let relativePath = path;
+
+    // If the base URL contains a namespace, make the path relative.
+    if (activeConnection && activeConnection.baseUrl.includes('/wp-json/')) {
+        try {
+            const baseUrlObject = new URL(activeConnection.baseUrl);
+            const baseUrlPath = baseUrlObject.pathname;
+            if(path.startsWith(baseUrlPath)) {
+                relativePath = path.substring(baseUrlPath.length);
+            }
+        } catch (e) {
+            // Could not parse baseUrl, proceed with the original path
+        }
+    } else if (apiNamespace && path.startsWith(apiNamespace)) {
+        // Fallback for older logic if needed
+        relativePath = path.substring(apiNamespace.length);
     }
-    queryForm.setValue('path', finalPath);
+    
+    queryForm.setValue('path', relativePath || '/');
     handleExecuteQuery();
   };
   
   const getDisplayBaseUrl = () => {
     if (!activeConnection) return 'Selecione uma conexão';
-    if (activeConnection.apiType === 'wordpress' && apiNamespace) {
-        return `${activeConnection.baseUrl}/wp-json${apiNamespace}`;
-    }
     return activeConnection.baseUrl;
   }
 
@@ -311,7 +295,7 @@ export default function ApiExplorerPage() {
           </DialogContent>
         </Dialog>
 
-        {viewMode === 'welcome' ? (
+        {viewMode === 'welcome' && connections.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-center p-4">
               <div className="max-w-md">
                   <Rocket className="mx-auto h-16 w-16 text-primary/80 mb-6" strokeWidth={1.5} />
@@ -340,7 +324,7 @@ export default function ApiExplorerPage() {
                         {viewMode === 'discovery' ? 'Endpoints Disponíveis' : 'Resultados'}
                     </CardTitle>
                     <CardDescription>
-                        {viewMode === 'discovery' ? `Endpoints encontrados em ${apiNamespace}` : 'Dados retornados da sua consulta.'}
+                        {viewMode === 'discovery' && apiNamespace ? `Endpoints encontrados em ${apiNamespace}` : 'Dados retornados da sua consulta.'}
                     </CardDescription>
                 </div>
                 {viewMode === 'data-explorer' && (
@@ -357,18 +341,19 @@ export default function ApiExplorerPage() {
                 <CardContent className="flex-1 overflow-auto p-0">
                 {isPending && <LoadingState />}
                 {!isPending && apiResponse?.error && <ErrorState message={apiResponse.error} />}
-                {!isPending && !apiResponse?.data && !apiResponse?.error && <InitialState />}
-
-
-                {viewMode === 'discovery' && apiResponse?.data && (
+                
+                {viewMode === 'discovery' && apiResponse?.data && !isPending && (
                     <DiscoveryView data={apiResponse.data} onExplore={handleExploreEndpoint} />
                 )}
 
-                {viewMode === 'data-explorer' && displayData.length > 0 && (
+                {viewMode === 'data-explorer' && displayData.length > 0 && !isPending && (
                     <DataTable data={displayData} columns={visibleColumns} onRowDelete={handleRowDelete}/>
                 )}
-                {viewMode === 'data-explorer' && !isPending && displayData.length === 0 && !apiResponse?.error && (
-                     <p className="p-6">A consulta foi bem-sucedida, mas não retornou dados.</p>
+
+                {!isPending && !apiResponse?.error && (
+                  <>
+                    {viewMode !== 'discovery' && displayData.length === 0 && <InitialState />}
+                  </>
                 )}
                 </CardContent>
             </Card>
@@ -408,7 +393,7 @@ function QueryBuilderForm({ form, onSubmit, isPending, displayBaseUrl, activeCon
                   <span className="p-2 rounded-l-md bg-muted text-muted-foreground text-sm whitespace-nowrap">
                     {displayBaseUrl}
                   </span>
-                  <Input {...field} placeholder="/endpoint" className="rounded-l-none font-code" />
+                  <Input {...field} placeholder="/caminho/do/endpoint" className="rounded-l-none font-code" />
                 </div>
               </FormControl>
             </FormItem>
@@ -559,7 +544,7 @@ const LoadingState = () => (
 
 const ErrorState = ({ message }: { message: string }) => (
   <div className="flex items-center justify-center h-full p-4">
-    <Alert variant="destructive" className="max-w-md">
+    <Alert variant="destructive" className="max-w-xl">
       <AlertCircle className="size-4" />
       <AlertTitle>Ocorreu um Erro</AlertTitle>
       <AlertDescription className="font-code text-sm">{message}</AlertDescription>
@@ -582,7 +567,6 @@ const InitialState = () => (
 
 function DiscoveryView({ data, onExplore }: { data: any, onExplore: (path: string) => void }) {
     const schema = Array.isArray(data) ? data[0] : data;
-    // WordPress API schema has a 'routes' object. Other schemas might be different.
     const routes = schema?.routes ? Object.entries(schema.routes) : [];
   
     return (
@@ -610,3 +594,4 @@ function DiscoveryView({ data, onExplore }: { data: any, onExplore: (path: strin
       </ScrollArea>
     );
   }
+

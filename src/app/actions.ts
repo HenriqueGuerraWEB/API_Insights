@@ -21,20 +21,13 @@ export type FetchApiDataOutput = {
 };
 
 // Helper function to build the final URL based on API type
-function buildUrl(baseUrl: string, path: string, apiType: 'wordpress' | 'generic'): string {
-    let finalUrl = baseUrl;
-    // Ensure base URL doesn't have a trailing slash
-    if (finalUrl.endsWith('/')) {
-        finalUrl = finalUrl.slice(0, -1);
-    }
-    // Ensure path starts with a slash
-    let finalPath = path.startsWith('/') ? path : `/${path}`;
-
-    if (apiType === 'wordpress' && !finalPath.startsWith('/wp-json')) {
-        finalPath = `/wp-json${finalPath}`;
-    }
+function buildUrl(baseUrl: string, path: string): string {
+    const finalBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    const finalPath = path.startsWith('/') ? path : `/${path}`;
     
-    return `${finalUrl}${finalPath}`;
+    // Simple concatenation is now the rule. The base URL from the connection
+    // is the source of truth. The path from the form is relative to that.
+    return `${finalBaseUrl}${finalPath}`;
 }
 
 
@@ -42,8 +35,11 @@ function buildUrl(baseUrl: string, path: string, apiType: 'wordpress' | 'generic
 // consider a shared cache like Redis.
 const aiNameSuggestionCache: Record<string, Record<string, string>> = {};
 
-// Function to get or fetch AI-suggested names
+// Function to get or fetch AI-suggested names from localStorage cache first
 async function getOrFetchAiSuggestions(cacheKey: string, keys: string[]): Promise<Record<string, string>> {
+    
+    // For client-side localStorage access, this function would need to be a client-side utility.
+    // Given this is a server action, we will stick to in-memory cache.
     if (aiNameSuggestionCache[cacheKey]) {
         return aiNameSuggestionCache[cacheKey];
     }
@@ -58,12 +54,11 @@ async function getOrFetchAiSuggestions(cacheKey: string, keys: string[]): Promis
             acc[key] = friendlyName;
             return acc;
         }, {} as Record<string, string>);
-
-        aiNameSuggestionCache[cacheKey] = suggestedNames; // Cache the result
+        
+        aiNameSuggestionCache[cacheKey] = suggestedNames;
         return suggestedNames;
     } catch (aiError: any) {
         console.error("AI suggestion failed:", aiError);
-        // On AI failure, fallback to using original keys as names
         return keys.reduce((acc, key) => {
             acc[key] = key;
             return acc;
@@ -76,7 +71,7 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
   try {
     const validatedInput = fetchApiDataInputSchema.parse(input);
     
-    let url = buildUrl(validatedInput.url, validatedInput.path, validatedInput.apiType);
+    let url = buildUrl(validatedInput.url, validatedInput.path);
 
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       url = 'https://' + url;
@@ -91,7 +86,14 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
 
     if (!response.ok) {
       const errorText = await response.text();
-      return { data: null, suggestedNames: {}, namespace: null, error: `Erro: ${response.status} ${response.statusText}. ${errorText}` };
+      try {
+        // Try to parse error for more details (like WordPress rest_no_route)
+        const errorJson = JSON.parse(errorText);
+        const detailedError = errorJson.message || JSON.stringify(errorJson);
+        return { data: null, suggestedNames: {}, namespace: null, error: `Erro: ${response.status} ${response.statusText}. Detalhes: ${detailedError}` };
+      } catch (e) {
+        return { data: null, suggestedNames: {}, namespace: null, error: `Erro: ${response.status} ${response.statusText}. ${errorText}` };
+      }
     }
 
     const data = await response.json();
@@ -101,11 +103,9 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
       return { data: [], suggestedNames: {}, namespace: null, error: 'A resposta da API está vazia.' };
     }
     
-    // Check if it is a schema response to extract namespace
     const firstItem = dataArray[0];
     const namespace = (firstItem && typeof firstItem === 'object' && 'namespace' in firstItem) ? firstItem.namespace : null;
 
-    // Generate a unique cache key for the endpoint
     const cacheKey = `${validatedInput.url}${validatedInput.path}`;
     
     const keys = Array.from(new Set(dataArray.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
