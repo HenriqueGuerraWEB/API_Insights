@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useMemo, useTransition, useCallback } from "react";
+import { useState, useMemo, useTransition, useCallback, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { v4 as uuidv4 } from "uuid";
@@ -131,6 +131,12 @@ export default function ApiExplorerPage() {
   const handleSetActiveConnection = useCallback((id: string) => {
     setActiveConnectionId(id);
   }, [setActiveConnectionId]);
+
+  useEffect(() => {
+    if (activeConnection) {
+        queryForm.setValue('path', ''); 
+    }
+  }, [activeConnection, queryForm]);
 
   const addConnection = useCallback((conn: Omit<Connection, "id">) => {
     setConnections(prev => {
@@ -509,3 +515,4 @@ const InitialState = () => (
       </p>
     </div>
   );
+
