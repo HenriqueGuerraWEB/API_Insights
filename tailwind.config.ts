@@ -14,9 +14,6 @@ export default {
         headline: ['Inter', 'sans-serif'],
         code: ['Source Code Pro', 'monospace'],
       },
-      textShadow: {
-        DEFAULT: '0 1px 2px rgba(0,0,0,0.5)',
-      },
       colors: {
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
@@ -31,7 +28,6 @@ export default {
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
-          dark: 'hsl(var(--primary) / 0.8)',
         },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
@@ -101,13 +97,5 @@ export default {
   },
   plugins: [
     require('tailwindcss-animate'),
-    function ({ addUtilities, theme }: { addUtilities: any, theme: any }) {
-      const newUtilities = {
-        '.text-shadow': {
-          textShadow: theme('textShadow.DEFAULT'),
-        },
-      }
-      addUtilities(newUtilities, ['responsive', 'hover'])
-    }
   ],
 } satisfies Config;

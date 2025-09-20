@@ -14,7 +14,6 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarInset,
-  SidebarTrigger,
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -81,8 +80,6 @@ import {
   Plus,
   Database,
   Trash2,
-  Settings,
-  Wand2,
   AlertCircle,
   Play,
   FileDown,
@@ -91,11 +88,10 @@ import {
   ArrowDown,
   Eye,
   EyeOff,
-  Code,
-  Rocket,
   FileJson,
   Sheet as SheetIcon,
-  FileText
+  FileText,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -135,30 +131,26 @@ const connectionSchema = z.object({
   path: ["apiKeyValue"],
 });
 
-const queryParamsSchema = z.object({
-  params: z.array(z.object({ key: z.string(), value: z.string() })),
-  headers: z.array(z.object({ key: z.string(), value: z.string() })),
-});
 
-
-const GlassCard = ({ className, ...props }: React.ComponentProps<typeof Card>) => (
-  <Card 
-    className={cn(
-      "bg-[rgba(28,22,68,0.4)] backdrop-blur-[24px] border-none",
-      "before:content-[''] before:absolute before:inset-0 before:p-[1px] before:rounded-[inherit]",
-      "before:[background:linear-gradient(to_bottom,hsl(var(--border)),transparent)]",
-      "before:[mask:linear-gradient(#fff_0_0)_content-box,linear-gradient(#fff_0_0)]",
-      "before:[mask-composite:exclude]",
-      className
-    )} 
-    {...props} 
-  />
+const EtherealCard = ({ className, ...props }: React.ComponentProps<typeof Card>) => (
+    <Card 
+      className={cn(
+        "bg-[rgba(25,25,25,0.5)] border border-white/10 backdrop-blur-[32px] relative overflow-hidden",
+        "before:content-[''] before:absolute before:inset-0 before:p-[1px] before:rounded-[inherit]",
+        "before:[background:linear-gradient(to_bottom,hsl(var(--border)),transparent_40%)]",
+        "before:[mask:linear-gradient(#fff_0_0)_content-box,linear-gradient(#fff_0_0)]",
+        "before:[mask-composite:exclude]",
+        "after:content-[''] after:absolute after:top-0 after:left-1/4 after:w-1/2 after:h-[60px] after:bg-gradient-to-b after:from-white/10 after:to-transparent after:blur-3xl after:opacity-50",
+        className
+      )} 
+      {...props} 
+    />
 );
 
 // Main Component
 export default function ApiExplorerPage() {
   const [connections, setConnections] = useLocalStorage<Connection[]>("api-connections", []);
-  const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
+  const [activeConnectionId, setActiveConnectionId] = useLocalStorage<string | null>("active-connection-id", null);
   const [apiResponse, setApiResponse] = useState<FetchApiDataOutput | null>(null);
   const [columns, setColumns] = useState<Column[]>([]);
   const [isColumnManagerOpen, setColumnManagerOpen] = useState(false);
@@ -272,7 +264,7 @@ export default function ApiExplorerPage() {
   const deleteConnection = (id: string) => {
     setConnections(connections.filter(c => c.id !== id));
     if (activeConnectionId === id) {
-      setActiveConnectionId(null);
+      setActiveConnectionId(connections.length > 1 ? connections.filter(c => c.id !== id)[0].id : null);
     }
   };
 
@@ -281,17 +273,21 @@ export default function ApiExplorerPage() {
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader className="p-4">
-          <div className="flex items-center gap-2">
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="rocket-gradient" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#895BFF" />
-                    <stop offset="100%" stopColor="#00A3FF" />
-                  </linearGradient>
-                </defs>
-                <path d="M9.33333 21H18.6667C19.2188 21 19.6667 20.5521 19.6667 20V19.5C19.6667 18.9479 19.2188 18.5 18.6667 18.5H9.33333C8.78125 18.5 8.33333 18.9479 8.33333 19.5V20C8.33333 20.5521 8.78125 21 9.33333 21ZM14 24.5C14.7292 24.5 15.3333 23.8958 15.3333 23.1667V18.5H12.6667V23.1667C12.6667 23.8958 13.2708 24.5 14 24.5ZM14 2.5C11.5208 2.5 9.5 4.52083 9.5 7C9.5 8.35417 10.15 9.60417 11.1667 10.5L7.83333 13.8333V16.3333C7.83333 16.8854 8.28125 17.3333 8.83333 17.3333H19.1667C19.7188 17.3333 20.1667 16.8854 20.1667 16.3333V13.8333L16.8333 10.5C17.85 9.60417 18.5 8.35417 18.5 7C18.5 4.52083 16.4792 2.5 14 2.5Z" fill="url(#rocket-gradient)"/>
-              </svg>
-            <h2 className="text-xl font-bold text-primary-foreground font-headline">API Insights</h2>
+          <div className="flex items-center gap-3">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="url(#logo-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M2 7L12 12" stroke="url(#logo-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M12 22V12" stroke="url(#logo-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M22 7L12 12" stroke="url(#logo-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M17 4.5L7 9.5" stroke="url(#logo-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <defs>
+                <linearGradient id="logo-gradient" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="white"/>
+                  <stop offset="1" stopColor="white" stopOpacity="0.5"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <h2 className="text-lg font-semibold text-foreground tracking-wide">API Insights</h2>
           </div>
         </SidebarHeader>
         <SidebarContent className="p-0">
@@ -305,14 +301,14 @@ export default function ApiExplorerPage() {
                   <SidebarMenuButton 
                     onClick={() => setActiveConnectionId(conn.id)}
                     isActive={activeConnectionId === conn.id}
-                    className="justify-between hover:text-primary"
+                    className="justify-between"
                   >
                     <div className="flex items-center gap-2 truncate">
                       <Database className="size-4" />
                       <span className="truncate">{conn.name}</span>
                     </div>
                   </SidebarMenuButton>
-                  <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-7 w-7" onClick={() => deleteConnection(conn.id)}>
+                  <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-7 w-7" onClick={(e) => { e.stopPropagation(); deleteConnection(conn.id); }}>
                     <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />
                   </Button>
                 </SidebarMenuItem>
@@ -320,24 +316,22 @@ export default function ApiExplorerPage() {
             </SidebarMenu>
           </ScrollArea>
         </SidebarContent>
-        <SidebarFooter className="p-4 border-t border-sidebar-border/30">
+        <SidebarFooter className="p-4 border-t border-sidebar-border">
             <p className="text-xs text-muted-foreground">Construído com Next.js e GenAI.</p>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
         <div className="flex flex-col h-screen p-4 gap-4">
-          {/* Query Builder Panel */}
-          <GlassCard>
+          <EtherealCard>
               <CardContent className="p-4">
                 <QueryBuilderForm form={queryForm} onSubmit={handleExecuteQuery} isPending={isPending} activeConnection={activeConnection} />
               </CardContent>
-          </GlassCard>
+          </EtherealCard>
 
-          {/* Results Panel */}
-          <GlassCard className="flex-1 flex flex-col overflow-hidden">
+          <EtherealCard className="flex-1 flex flex-col overflow-hidden">
             <CardHeader className="flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-shadow">Resultados</CardTitle>
+                <CardTitle>Resultados</CardTitle>
                 <CardDescription>Dados retornados da sua consulta.</CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -351,16 +345,16 @@ export default function ApiExplorerPage() {
                   <ExportDropdown onExport={handleExport} isPending={isPending} />
               </div>
             </CardHeader>
-            <CardContent className="flex-1 overflow-auto">
+            <CardContent className="flex-1 overflow-auto p-0">
               {isPending && !apiResponse && <LoadingState />}
               {apiResponse?.error && <ErrorState message={apiResponse.error} />}
               {!isPending && !apiResponse && <InitialState />}
               {apiResponse?.data && apiResponse.data.length > 0 && (
                   <DataTable data={apiResponse.data} columns={visibleColumns} />
               )}
-              {apiResponse?.data && apiResponse.data.length === 0 && <p>A consulta foi bem-sucedida, mas não retornou dados.</p>}
+              {apiResponse?.data && apiResponse.data.length === 0 && <p className="p-6">A consulta foi bem-sucedida, mas não retornou dados.</p>}
             </CardContent>
-          </GlassCard>
+          </EtherealCard>
         </div>
       </SidebarInset>
     </SidebarProvider>
@@ -385,11 +379,11 @@ function ConnectionDialog({ onSave }: { onSave: (data: Omit<Connection, 'id'>) =
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="default" className="w-full">
+        <Button variant="primary" className="w-full">
           <Plus className="mr-2 size-4" /> Nova Conexão
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-[rgba(28,22,68,0.6)] backdrop-blur-xl border-border/50">
+      <DialogContent>
         <Form {...form}>
           <form onSubmit={handleSubmit}>
             <DialogHeader>
@@ -421,7 +415,7 @@ function ConnectionDialog({ onSave }: { onSave: (data: Omit<Connection, 'id'>) =
             </div>
             <DialogFooter>
               <DialogClose asChild><Button variant="ghost">Cancelar</Button></DialogClose>
-              <Button type="submit">Salvar</Button>
+              <Button type="submit" variant="primary">Salvar</Button>
             </DialogFooter>
           </form>
         </Form>
@@ -444,15 +438,15 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
           <FormField name="path" control={form.control} render={({ field }) => (
             <FormItem className="flex-1"><FormLabel>Endpoint</FormLabel><FormControl><div className="flex items-center"><span className="p-2 rounded-l-md bg-muted/80 text-muted-foreground text-sm">{activeConnection?.baseUrl || 'Selecione uma conexão'}</span><Input {...field} placeholder="/users" className="rounded-l-none" /></div></FormControl></FormItem>
           )} />
-          <Button type="submit" disabled={isPending || !activeConnection} className="h-10">
-            {isPending ? <Wand2 className="mr-2 size-4 animate-spin" /> : <Play className="mr-2 size-4" />}
+          <Button type="submit" variant="primary" disabled={isPending || !activeConnection} className="h-10">
+            {isPending ? <Sparkles className="mr-2 size-4 animate-spin" /> : <Play className="mr-2 size-4" />}
             Executar
           </Button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
            <div>
-              <h4 className="font-semibold mb-2 text-shadow">Parâmetros</h4>
-              <ScrollArea className="h-32 pr-4">
+              <h4 className="font-medium mb-2 text-foreground">Parâmetros</h4>
+              <ScrollArea className="h-32 pr-4 -mr-4">
                 {params.map((field, index) => (
                   <div key={field.id} className="flex gap-2 mb-2">
                     <Input {...form.register(`params.${index}.key`)} placeholder="key" className="h-8" />
@@ -461,11 +455,11 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
                   </div>
                 ))}
               </ScrollArea>
-              <Button type="button" variant="outline" size="sm" onClick={() => appendParam({ key: "", value: "" })} className="mt-2 w-full">Adicionar Parâmetro</Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => appendParam({ key: "", value: "" })} className="mt-2 w-full">Adicionar Parâmetro</Button>
            </div>
            <div>
-              <h4 className="font-semibold mb-2 text-shadow">Headers</h4>
-              <ScrollArea className="h-32 pr-4">
+              <h4 className="font-medium mb-2 text-foreground">Headers</h4>
+              <ScrollArea className="h-32 pr-4 -mr-4">
                 {headers.map((field, index) => (
                    <div key={field.id} className="flex gap-2 mb-2">
                     <Input {...form.register(`headers.${index}.key`)} placeholder="key" className="h-8"/>
@@ -474,12 +468,12 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
                   </div>
                 ))}
               </ScrollArea>
-              <Button type="button" variant="outline" size="sm" onClick={() => appendHeader({ key: "", value: "" })} className="mt-2 w-full">Adicionar Header</Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => appendHeader({ key: "", value: "" })} className="mt-2 w-full">Adicionar Header</Button>
            </div>
            <div>
-             <h4 className="font-semibold mb-2 text-shadow">Body (JSON)</h4>
+             <h4 className="font-medium mb-2 text-foreground">Body (JSON)</h4>
              <FormField name="body" control={form.control} render={({ field }) => (
-                <FormItem><FormControl><Textarea {...field} placeholder={`{\n  "key": "value"\n}`} className="font-code h-32" /></FormControl></FormItem>
+                <FormItem><FormControl><Textarea {...field} placeholder={`{\n  "key": "value"\n}`} className="font-code h-32 bg-transparent" /></FormControl></FormItem>
               )} />
            </div>
         </div>
@@ -489,12 +483,12 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
 }
 
 function DataTable({ data, columns }: { data: any[]; columns: Column[] }) {
-  const headers = useMemo(() => columns.map(col => <TableHead key={col.key} className="uppercase tracking-wider">{col.friendlyName}</TableHead>), [columns]);
+  const headers = useMemo(() => columns.map(col => <TableHead key={col.key} className="uppercase tracking-wider font-medium text-muted-foreground">{col.friendlyName}</TableHead>), [columns]);
   
   const rows = useMemo(() => data.map((row, rowIndex) => (
-    <TableRow key={rowIndex} className="bg-transparent border-white/10 hover:bg-[rgba(137,91,255,0.1)]">
+    <TableRow key={rowIndex} className="border-white/5 even:bg-white/5">
       {columns.map(col => (
-        <TableCell key={`${rowIndex}-${col.key}`} className="font-code text-sm max-w-xs truncate">
+        <TableCell key={`${rowIndex}-${col.key}`} className="font-code text-sm max-w-xs truncate py-3">
           {typeof row[col.key] === 'object' && row[col.key] !== null ? JSON.stringify(row[col.key]) : String(row[col.key] ?? '')}
         </TableCell>
       ))}
@@ -504,7 +498,7 @@ function DataTable({ data, columns }: { data: any[]; columns: Column[] }) {
   return (
     <ScrollArea className="h-full">
       <Table>
-        <TableHeader><TableRow className="border-b border-white/20">{headers}</TableRow></TableHeader>
+        <TableHeader><TableRow className="border-b border-white/10 hover:bg-transparent">{headers}</TableRow></TableHeader>
         <TableBody>{rows}</TableBody>
       </Table>
     </ScrollArea>
@@ -524,16 +518,16 @@ function ColumnManagerDrawer({ columns, setColumns, isOpen, setIsOpen, onOrderCh
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline"><Columns className="mr-2 size-4" strokeWidth={2.5}/> Gerenciar Colunas</Button>
+        <Button variant="secondary"><Columns className="mr-2 size-4"/> Gerenciar Colunas</Button>
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-md bg-[rgba(28,22,68,0.6)] backdrop-blur-xl border-border/50">
+      <SheetContent>
         <SheetHeader>
           <SheetTitle>Gerenciar Colunas</SheetTitle>
         </SheetHeader>
         <ScrollArea className="h-[calc(100vh-8rem)] mt-4 pr-4">
           <div className="space-y-4">
             {columns.map((col, index) => (
-              <div key={col.key} className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+              <div key={col.key} className="flex items-center gap-2 p-2 rounded-md bg-white/5">
                  <div className="flex flex-col">
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onOrderChange(index, 'up')} disabled={index === 0}><ArrowUp className="size-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onOrderChange(index, 'down')} disabled={index === columns.length - 1}><ArrowDown className="size-4" /></Button>
@@ -558,12 +552,12 @@ function ExportDropdown({ onExport, isPending }: { onExport: (format: "json" | "
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button><FileDown className="mr-2 size-4" /> Exportar</Button>
+        <Button variant="secondary"><FileDown className="mr-2 size-4" /> Exportar</Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem onClick={() => onExport("json")} disabled={isPending}><FileJson className="mr-2 size-4" /> JSON</DropdownMenuItem>
         <DropdownMenuItem onClick={() => onExport("csv")} disabled={isPending}><SheetIcon className="mr-2 size-4" /> CSV</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onExport("pdf")} disabled={isPending}><FileText className="mr-2 size-4" /> PDF (em breve)</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onExport("pdf")} disabled={true}><FileText className="mr-2 size-4" /> PDF (em breve)</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -571,44 +565,39 @@ function ExportDropdown({ onExport, isPending }: { onExport: (format: "json" | "
 
 const LoadingState = () => (
   <div className="flex flex-col items-center justify-center h-full text-center">
-    <div className="relative w-24 h-24">
-      <div className="absolute inset-0 border-2 border-primary/30 rounded-full"></div>
-      <div className="absolute inset-2 border-t-2 border-primary rounded-full animate-spin"></div>
+    <div className="relative w-16 h-16">
+       <div className="absolute inset-0 border-2 border-white/10 rounded-full"></div>
+       <div className="absolute inset-0 border-t-2 border-white rounded-full animate-spin"></div>
     </div>
-    <p className="mt-4 text-lg font-semibold text-primary-foreground">Buscando dados...</p>
-    <p className="text-muted-foreground flex items-center gap-2 mt-1">
-      <Wand2 className="size-4 text-primary" /> IA analisando a estrutura...
+    <p className="mt-4 text-md font-medium text-foreground">Buscando dados...</p>
+    <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
+      <Sparkles className="size-4 text-white/80" /> IA analisando a estrutura...
     </p>
   </div>
 );
 
 const ErrorState = ({ message }: { message: string }) => (
-  <div className="flex items-center justify-center h-full">
-    <Alert variant="destructive" className="max-w-md bg-destructive/20 border-destructive text-destructive-foreground">
+  <div className="flex items-center justify-center h-full p-4">
+    <Alert variant="destructive" className="max-w-md">
       <AlertCircle className="size-4" />
       <AlertTitle>Ocorreu um Erro</AlertTitle>
-      <AlertDescription className="font-code">{message}</AlertDescription>
+      <AlertDescription className="font-code text-sm">{message}</AlertDescription>
     </Alert>
   </div>
 );
 
 const InitialState = () => (
     <div className="flex flex-col items-center justify-center h-full text-center p-8">
-       <div className="mb-4">
-        <svg width="80" height="80" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <linearGradient id="rocket-gradient-large" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#895BFF" />
-                <stop offset="100%" stopColor="#00A3FF" />
-                </linearGradient>
-            </defs>
-            <path d="M9.33333 21H18.6667C19.2188 21 19.6667 20.5521 19.6667 20V19.5C19.6667 18.9479 19.2188 18.5 18.6667 18.5H9.33333C8.78125 18.5 8.33333 18.9479 8.33333 19.5V20C8.33333 20.5521 8.78125 21 9.33333 21ZM14 24.5C14.7292 24.5 15.3333 23.8958 15.3333 23.1667V18.5H12.6667V23.1667C12.6667 23.8958 13.2708 24.5 14 24.5ZM14 2.5C11.5208 2.5 9.5 4.52083 9.5 7C9.5 8.35417 10.15 9.60417 11.1667 10.5L7.83333 13.8333V16.3333C7.83333 16.8854 8.28125 17.3333 8.83333 17.3333H19.1667C19.7188 17.3333 20.1667 16.8854 20.1667 16.3333V13.8333L16.8333 10.5C17.85 9.60417 18.5 8.35417 18.5 7C18.5 4.52083 16.4792 2.5 14 2.5Z" fill="url(#rocket-gradient-large)"/>
-        </svg>
+       <div className="mb-4 text-white/50">
+          <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <path d="m10 14-2 2 2 2"></path><path d="m14 18 2-2-2-2"></path>
+          </svg>
        </div>
-      <h3 className="text-3xl font-bold font-headline">Bem-vindo ao API Insights</h3>
-      <p className="mt-2 max-w-md text-muted-foreground">
-        Conecte-se a uma fonte de dados, execute uma consulta e comece a explorar.
-        Seu assistente de IA está pronto para ajudar.
+      <h3 className="text-xl font-medium">Bem-vindo ao API Insights</h3>
+      <p className="mt-2 max-w-sm text-muted-foreground">
+        Conecte-se a uma fonte de dados, execute uma consulta e os resultados aparecerão aqui. Seu assistente de IA está pronto para ajudar a dar sentido aos dados brutos.
       </p>
     </div>
   );

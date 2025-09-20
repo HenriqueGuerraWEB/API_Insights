@@ -3,38 +3,38 @@
 @tailwind utilities;
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 @layer base {
   :root {
-    --background: 257 69% 10%; /* #070415 */
-    --foreground: 210 40% 98%;
+    --background: 0 0% 7%; /* #121212 */
+    --foreground: 0 0% 98%; /* #FAFAFA */
 
-    --card: 252 55% 14%; /* rgba(28, 22, 68, 1) */
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 10% / 0.5; /* rgba(25, 25, 25, 0.5) */
+    --card-foreground: 0 0% 98%;
 
-    --popover: 257 69% 6%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 258 100% 67%; /* #895BFF */
-    --primary-foreground: 210 40% 98%;
+    --primary: 0 0% 98%; /* Using foreground for primary actions */
+    --primary-foreground: 0 0% 7%;
 
-    --secondary: 252 55% 20%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 0 0% 15.7%; /* #282828 */
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 252 55% 16%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 0 0% 15.7%;
+    --muted-foreground: 0 0% 98% / 0.7; /* rgba(250, 250, 250, 0.7) */
 
-    --accent: 252 55% 24%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 0 0% 100% / 0.1; /* rgba(255, 255, 255, 0.1) */
+    --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 100% 67%;
+    --destructive: 0 84% 60%; /* A bit more muted red */
     --destructive-foreground: 0 0% 98%;
 
-    --border: 258 100% 75%; /* #A07FFF */
-    --input: 252 55% 10%;
-    --ring: 258 100% 67%;
+    --border: 0 0% 100% / 0.2; /* rgba(255, 255, 255, 0.2) */
+    --input: 0 0% 100% / 0.05;
+    --ring: 0 0% 98%;
 
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -42,51 +42,49 @@ body {
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --radius: 0.5rem;
-
-    --sidebar-background: 257 69% 8%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 258 100% 67%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 252 55% 20%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 252 55% 25%;
-    --sidebar-ring: 258 100% 67%;
+    --sidebar-background: 0 0% 7%; /* #121212 */
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 0 0% 7%;
+    --sidebar-accent: 0 0% 100% / 0.1;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 100% / 0.1;
+    --sidebar-ring: 0 0% 98%;
   }
 
   .dark {
-    --background: 257 69% 10%;
-    --foreground: 210 40% 98%;
-    --card: 252 55% 14%;
-    --card-foreground: 210 40% 98%;
-    --popover: 257 69% 6%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 258 100% 67%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 252 55% 20%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 252 55% 16%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 252 55% 24%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 100% 67%;
+    --background: 0 0% 7%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 10% / 0.5;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 7%;
+    --secondary: 0 0% 15.7%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 15.7%;
+    --muted-foreground: 0 0% 98% / 0.7;
+    --accent: 0 0% 100% / 0.1;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 258 100% 75%;
-    --input: 252 55% 10%;
-    --ring: 258 100% 67%;
+    --border: 0 0% 100% / 0.2;
+    --input: 0 0% 100% / 0.05;
+    --ring: 0 0% 98%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --sidebar-background: 257 69% 8%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 258 100% 67%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 252 55% 20%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 252 55% 25%;
-    --sidebar-ring: 258 100% 67%;
+    --sidebar-background: 0 0% 7%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 0 0% 7%;
+    --sidebar-accent: 0 0% 100% / 0.1;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 100% / 0.1;
+    --sidebar-ring: 0 0% 98%;
   }
 }
 
@@ -96,24 +94,41 @@ body {
   }
   body {
     @apply bg-background text-foreground;
-    background-color: hsl(var(--background));
-    background-image: radial-gradient(circle at center, #1A113B 0%, #070415 70%);
   }
 }
 
 @layer components {
-    .noise-texture {
-        position: relative;
-    }
-    .noise-texture::after {
-        content: "";
-        position: absolute;
+    .grain-texture {
+        position: fixed;
         top: 0;
         left: 0;
         width: 100%;
-        height: 100%;
-        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 1024 1024' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-        opacity: 0.05;
+        height: 100vh;
         pointer-events: none;
+        z-index: -1;
+    }
+    .grain-texture::before {
+        content: "";
+        position: absolute;
+        top: -100%;
+        left: -100%;
+        width: 300%;
+        height: 300%;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 1024 1024' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        animation: grain 8s steps(10) infinite;
+        opacity: 0.02;
+    }
+
+    @keyframes grain {
+      0%, 100% { transform: translate(0, 0); }
+      10% { transform: translate(-5%, -10%); }
+      20% { transform: translate(-15%, 5%); }
+      30% { transform: translate(7%, -25%); }
+      40% { transform: translate(-5%, 25%); }
+      50% { transform: translate(-15%, 10%); }
+      60% { transform: translate(15%, 0%); }
+      70% { transform: translate(0%, 15%); }
+      80% { transform: translate(3%, 35%); }
+      90% { transform: translate(-10%, 10%); }
     }
 }
