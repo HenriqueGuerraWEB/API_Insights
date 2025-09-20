@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 const fetchApiDataInputSchema = z.object({
   connection: z.custom<Connection>(),
-  path: z.string(),
+  path: z.string(), // This is the FULL path now
   method: z.string(),
   params: z.array(z.object({ key: z.string(), value: z.string() })),
   headers: z.array(z.object({ key: z.string(), value: z.string() })),
@@ -21,20 +21,8 @@ export type FetchApiDataOutput = {
   namespace?: string | null;
 };
 
-function buildUrl(connection: Connection, path: string, params: {key: string, value: string}[]): string {
-    let finalUrl = connection.baseUrl;
-
-    // Ensure base URL doesn't have a trailing slash if the path has a leading one
-    if (finalUrl.endsWith('/') && path.startsWith('/')) {
-        finalUrl = finalUrl.slice(0, -1);
-    }
-    
-    // Ensure there's a slash between them if neither has one
-    if (!finalUrl.endsWith('/') && !path.startsWith('/') && path.length > 0) {
-        finalUrl += '/';
-    }
-
-    finalUrl += path;
+function buildUrl(path: string, params: {key: string, value: string}[], connection?: Connection): string {
+    let finalUrl = path;
     
     const queryParams = new URLSearchParams();
 
@@ -43,11 +31,14 @@ function buildUrl(connection: Connection, path: string, params: {key: string, va
         if (p.key) queryParams.append(p.key, p.value);
     });
 
-    // Add auth params if needed
-    if (connection.authMethod === 'wooCommerce' && connection.wooConsumerKey && connection.wooConsumerSecret) {
-        queryParams.append('consumer_key', connection.wooConsumerKey);
-        queryParams.append('consumer_secret', connection.wooConsumerSecret);
+    if (connection) {
+        // Add auth params if needed
+        if (connection.authMethod === 'wooCommerce' && connection.wooConsumerKey && connection.wooConsumerSecret) {
+            queryParams.append('consumer_key', connection.wooConsumerKey);
+            queryParams.append('consumer_secret', connection.wooConsumerSecret);
+        }
     }
+
 
     const queryString = queryParams.toString();
     if (queryString) {
@@ -97,7 +88,7 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
     const validatedInput = fetchApiDataInputSchema.parse(input);
     const { connection, path, method, params, headers: customHeaders, body } = validatedInput;
 
-    let url = buildUrl(connection, path, params);
+    let url = buildUrl(path, params, connection);
 
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       url = 'https://' + url;
@@ -142,7 +133,8 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
     const firstItem = dataArray[0];
     const namespace = (firstItem && typeof firstItem === 'object' && 'namespace' in firstItem) ? firstItem.namespace : null;
 
-    const cacheKey = `ai-suggestions:${connection.baseUrl}${path}`;
+    // Use the full URL as the cache key for suggestions to ensure uniqueness
+    const cacheKey = `ai-suggestions:${path}`;
     
     const keys = Array.from(new Set(dataArray.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
     
