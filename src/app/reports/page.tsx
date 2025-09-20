@@ -79,10 +79,11 @@ const ALL_STATUSES = [
 
 export default function ReportsPage() {
   const { connections, isLoading: connectionsLoading } = useConnections();
-   const defaultConnection = connections.find(c => c.apiType === 'WordPress') || connections[0];
   const [isPending, startTransition] = useTransition();
   const [reportData, setReportData] = useState<FinancialReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const defaultConnectionId = connections.find(c => c.apiType === 'WordPress')?.id || (connections.length > 0 ? connections[0].id : "");
 
   const form = useForm<ReportFormValues>({
     resolver: zodResolver(reportFormSchema),
@@ -92,7 +93,7 @@ export default function ReportsPage() {
         to: new Date(),
       },
       statuses: ["completed"],
-      connectionId: defaultConnection?.id || "",
+      connectionId: defaultConnectionId,
     },
   });
 
@@ -426,3 +427,4 @@ const ReportResults = ({ data }: { data: FinancialReport }) => {
     
 
     
+

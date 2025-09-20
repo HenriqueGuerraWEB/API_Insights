@@ -36,6 +36,7 @@ export function useConnections() {
   const { toast } = useToast();
 
   useEffect(() => {
+    setIsLoading(true);
     try {
       const savedConnections = window.localStorage.getItem(CONNECTIONS_STORAGE_KEY);
       const savedConnectionsParsed = savedConnections ? JSON.parse(savedConnections) : [];
