@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from "uuid";
+import { useToast } from './use-toast';
 
 export type Connection = {
   id: string;
@@ -20,6 +21,7 @@ const ACTIVE_CONNECTION_ID_STORAGE_KEY = "active-connection-id";
 export function useConnections() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [activeConnectionId, setActiveConnectionIdState] = useState<string | null>(null);
+  const { toast } = useToast();
 
   // Load initial data from localStorage on client-side mount
   useEffect(() => {
@@ -62,6 +64,15 @@ export function useConnections() {
   }, [setActiveConnectionId]);
 
   const deleteConnection = useCallback((id: string) => {
+    if (connections.length <= 1) {
+      toast({
+        variant: "destructive",
+        title: "Ação não permitida",
+        description: "Não é possível apagar a última fonte de dados existente.",
+      });
+      return;
+    }
+    
     setConnections(prev => {
       const newConnections = prev.filter(c => c.id !== id);
       try {
@@ -74,9 +85,15 @@ export function useConnections() {
         const newActiveId = newConnections.length > 0 ? newConnections[0].id : null;
         setActiveConnectionId(newActiveId);
       }
+      
+      toast({
+        title: "Conexão Apagada",
+        description: "A fonte de dados foi removida com sucesso.",
+      });
+
       return newConnections;
     });
-  }, [activeConnectionId, setActiveConnectionId]);
+  }, [connections.length, activeConnectionId, setActiveConnectionId, toast]);
 
   const activeConnection = useMemo(
     () => connections.find(c => c.id === activeConnectionId) || null,
@@ -92,3 +109,4 @@ export function useConnections() {
     setActiveConnectionId,
   };
 }
+

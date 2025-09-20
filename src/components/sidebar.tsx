@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/sidebar";
 import {
   Dialog,
-  DialogContent,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -18,12 +17,11 @@ import { Plus, Rocket } from "lucide-react";
 
 import type { Connection } from "@/hooks/use-connections";
 import { ConnectionItem } from "@/components/connection-item";
-import { ConnectionDialogContent } from "@/components/connection-dialog";
 
 type SidebarProps = {
   connections: Connection[];
   activeConnectionId: string | null;
-  onAddConnection: (connection: Omit<Connection, "id">) => void;
+  onAddConnection: () => void;
   onDeleteConnection: (id: string) => void;
   onSelectConnection: (id: string) => void;
 };
@@ -50,13 +48,11 @@ export function Sidebar({
                 <Button
                   variant="ghost"
                   className="w-full justify-center h-10 w-10 p-0"
+                  onClick={onAddConnection}
                 >
                   <Plus className="size-4" />
                 </Button>
               </DialogTrigger>
-              <DialogContent>
-                <ConnectionDialogContent onSave={onAddConnection} onCancel={()=>{}}/>
-              </DialogContent>
             </Dialog>
 
             {connections.map((conn) => (
@@ -74,3 +70,4 @@ export function Sidebar({
     </SidebarPrimitive>
   );
 }
+

@@ -91,6 +91,7 @@ export default function ApiExplorerPage() {
   const [columns, setColumns] = useState<Column[]>([]);
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
+  const [isNewConnectionDialogOpen, setIsNewConnectionDialogOpen] = useState(false);
 
   const queryForm = useForm<{ method: string, path: string, body: string, params: {key:string, value:string}[], headers: {key:string, value:string}[] }>({
     defaultValues: { method: "GET", path: "", body: "", params: [], headers: [] },
@@ -182,6 +183,11 @@ export default function ApiExplorerPage() {
       }
     });
   };
+  
+   const handleAddNewConnection = useCallback((newConnection: Omit<Connection, "id">) => {
+    addConnection(newConnection);
+    setIsNewConnectionDialogOpen(false);
+  }, [addConnection]);
 
   const updateColumnOrder = (index: number, direction: 'up' | 'down') => {
     const newColumns = [...columns];
@@ -202,11 +208,17 @@ export default function ApiExplorerPage() {
         <Sidebar 
           connections={connections} 
           activeConnectionId={activeConnection?.id || null}
-          onAddConnection={addConnection}
+          onAddConnection={() => setIsNewConnectionDialogOpen(true)}
           onDeleteConnection={deleteConnection}
           onSelectConnection={setActiveConnectionId}
         />
         
+        <Dialog open={isNewConnectionDialogOpen} onOpenChange={setIsNewConnectionDialogOpen}>
+          <DialogContent>
+              <ConnectionDialogContent onSave={handleAddNewConnection} onCancel={() => setIsNewConnectionDialogOpen(false)} />
+          </DialogContent>
+        </Dialog>
+
         {connections.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-center p-4">
               <div className="max-w-md">
@@ -222,7 +234,7 @@ export default function ApiExplorerPage() {
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
-                            <ConnectionDialogContent onSave={addConnection} onCancel={() => {}} />
+                            <ConnectionDialogContent onSave={handleAddNewConnection} onCancel={() => {}} />
                         </DialogContent>
                       </Dialog>
                   </div>
@@ -452,3 +464,4 @@ const InitialState = () => (
       </p>
     </div>
   );
+
