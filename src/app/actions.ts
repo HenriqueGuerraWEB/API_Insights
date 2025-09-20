@@ -17,19 +17,24 @@ export type FetchApiDataOutput = {
   data: any;
   suggestedNames: Record<string, string>;
   error?: string;
+  namespace?: string | null;
 };
 
 // Helper function to build the final URL based on API type
 function buildUrl(baseUrl: string, path: string, apiType: 'wordpress' | 'generic'): string {
-    const trimmedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    let finalPath = path;
+    let finalUrl = baseUrl;
+    // Ensure base URL doesn't have a trailing slash
+    if (finalUrl.endsWith('/')) {
+        finalUrl = finalUrl.slice(0, -1);
+    }
+    // Ensure path starts with a slash
+    let finalPath = path.startsWith('/') ? path : `/${path}`;
 
     if (apiType === 'wordpress' && !finalPath.startsWith('/wp-json')) {
-        const trimmedPath = finalPath.startsWith('/') ? finalPath : `/${finalPath}`;
-        finalPath = `/wp-json${trimmedPath}`;
+        finalPath = `/wp-json${finalPath}`;
     }
     
-    return `${trimmedBaseUrl}${finalPath}`;
+    return `${finalUrl}${finalPath}`;
 }
 
 
@@ -86,15 +91,19 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
 
     if (!response.ok) {
       const errorText = await response.text();
-      return { data: null, suggestedNames: {}, error: `Erro: ${response.status} ${response.statusText}. ${errorText}` };
+      return { data: null, suggestedNames: {}, namespace: null, error: `Erro: ${response.status} ${response.statusText}. ${errorText}` };
     }
 
     const data = await response.json();
     const dataArray = Array.isArray(data) ? data : [data];
 
     if (dataArray.length === 0) {
-      return { data: [], suggestedNames: {}, error: 'A resposta da API está vazia.' };
+      return { data: [], suggestedNames: {}, namespace: null, error: 'A resposta da API está vazia.' };
     }
+    
+    // Check if it is a schema response to extract namespace
+    const firstItem = dataArray[0];
+    const namespace = (firstItem && typeof firstItem === 'object' && 'namespace' in firstItem) ? firstItem.namespace : null;
 
     // Generate a unique cache key for the endpoint
     const cacheKey = `${validatedInput.url}${validatedInput.path}`;
@@ -103,16 +112,16 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
     
     const suggestedNames = await getOrFetchAiSuggestions(cacheKey, keys);
 
-    return { data: dataArray, suggestedNames };
+    return { data: dataArray, suggestedNames, namespace };
 
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return { data: null, suggestedNames: {}, error: `Dados de entrada inválidos: ${error.errors.map(e => e.message).join(', ')}` };
+      return { data: null, suggestedNames: {}, namespace: null, error: `Dados de entrada inválidos: ${error.errors.map(e => e.message).join(', ')}` };
     }
      if (error.message.includes('fetch failed')) {
-        return { data: null, suggestedNames: {}, error: 'Falha na conexão. Verifique a URL e a conexão com a internet.' };
+        return { data: null, suggestedNames: {}, namespace: null, error: 'Falha na conexão. Verifique a URL e a conexão com a internet.' };
     }
-    return { data: null, suggestedNames: {}, error: error.message || 'Ocorreu um erro desconhecido.' };
+    return { data: null, suggestedNames: {}, namespace: null, error: error.message || 'Ocorreu um erro desconhecido.' };
   }
 }
 
@@ -189,5 +198,3 @@ export async function exportData(input: z.infer<typeof exportDataInputSchema>): 
         return { content: '', mimeType: '', fileName: '', error: error.message || 'Ocorreu um erro desconhecido durante a exportação.' };
     }
 }
-
-    

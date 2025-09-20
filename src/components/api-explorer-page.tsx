@@ -92,6 +92,8 @@ export default function ApiExplorerPage() {
   const [viewMode, setViewMode] = useState<'welcome' | 'discovery' | 'data-explorer'>('welcome');
   const [apiResponse, setApiResponse] = useState<FetchApiDataOutput | null>(null);
   const [displayData, setDisplayData] = useState<any[]>([]);
+  const [apiNamespace, setApiNamespace] = useState<string | null>(null);
+
 
   const [columns, setColumns] = useState<Column[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -121,7 +123,8 @@ export default function ApiExplorerPage() {
   // Effect to fetch initial schema or data when a connection becomes active
   useEffect(() => {
     if (activeConnection) {
-        const initialPath = activeConnection.apiType === 'wordpress' ? '/wp-json' : '/';
+        // Set initial path for discovery
+        const initialPath = activeConnection.apiType === 'wordpress' ? '/' : '/';
         queryForm.setValue('path', initialPath);
         
         startTransition(async () => {
@@ -141,31 +144,7 @@ export default function ApiExplorerPage() {
                 body: null,
             });
 
-            setApiResponse(result);
-
-            if (result.error) {
-              setViewMode('data-explorer');
-              setDisplayData([]);
-              toast({ variant: "destructive", title: "Erro na Conexão Inicial", description: result.error });
-            } else if (result.data) {
-                const firstItem = Array.isArray(result.data) ? result.data[0] : result.data;
-                const isSchema = firstItem && typeof firstItem === 'object' && ('routes' in firstItem || 'namespace' in firstItem);
-                
-                if (isSchema) {
-                    setViewMode('discovery');
-                    setDisplayData([]); // Clear data when showing schema
-                } else {
-                    setViewMode('data-explorer');
-                    setDisplayData(result.data);
-                    const newColumns = Object.keys(result.suggestedNames).map((key, index) => ({
-                      key,
-                      friendlyName: result.suggestedNames[key] || key,
-                      visible: true,
-                      order: index,
-                    }));
-                    setColumns(newColumns);
-                }
-            }
+            handleApiResponse(result);
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,21 +193,29 @@ export default function ApiExplorerPage() {
         body: values.body,
       });
       
-      setApiResponse(result);
+      handleApiResponse(result);
+    });
+  });
 
-      if (result.error) {
-        setViewMode('data-explorer'); // Stay in data explorer to show error
-        setDisplayData([]);
-      } else if (result.data) {
+  const handleApiResponse = (result: FetchApiDataOutput) => {
+    setApiResponse(result);
+
+    if (result.error) {
+      setViewMode('data-explorer'); // Stay in data explorer to show error
+      setDisplayData([]);
+      setApiNamespace(null);
+    } else if (result.data) {
         const firstItem = Array.isArray(result.data) ? result.data[0] : result.data;
         const isSchema = firstItem && typeof firstItem === 'object' && ('routes' in firstItem || 'namespace' in firstItem);
-
-        if(isSchema) {
+        
+        if (isSchema) {
             setViewMode('discovery');
             setDisplayData([]);
+            setApiNamespace(result.namespace);
         } else {
             setViewMode('data-explorer');
             setDisplayData(result.data);
+            setApiNamespace(null);
             const newColumns = Object.keys(result.suggestedNames).map((key, index) => ({
               key,
               friendlyName: result.suggestedNames[key] || key,
@@ -237,9 +224,9 @@ export default function ApiExplorerPage() {
             }));
             setColumns(newColumns);
         }
-      }
-    });
-  });
+    }
+  }
+
 
   const handleExport = async (format: "json" | "csv" | "pdf") => {
     if (displayData.length === 0 || visibleColumns.length === 0) {
@@ -291,9 +278,21 @@ export default function ApiExplorerPage() {
   };
   
   const handleExploreEndpoint = (path: string) => {
-    queryForm.setValue('path', path);
+    let finalPath = path;
+    if (apiNamespace && path.startsWith(apiNamespace)) {
+        finalPath = path.substring(apiNamespace.length);
+    }
+    queryForm.setValue('path', finalPath);
     handleExecuteQuery();
   };
+  
+  const getDisplayBaseUrl = () => {
+    if (!activeConnection) return 'Selecione uma conexão';
+    if (activeConnection.apiType === 'wordpress' && apiNamespace) {
+        return `${activeConnection.baseUrl}/wp-json${apiNamespace}`;
+    }
+    return activeConnection.baseUrl;
+  }
 
   return (
     <SidebarProvider>
@@ -330,7 +329,7 @@ export default function ApiExplorerPage() {
           <PageContainer>
             <Card className="bg-card/80 backdrop-blur-xl">
                 <CardContent className="p-4">
-                    <QueryBuilderForm form={queryForm} onSubmit={handleExecuteQuery} isPending={isPending} activeConnection={activeConnection} />
+                    <QueryBuilderForm form={queryForm} onSubmit={handleExecuteQuery} isPending={isPending} displayBaseUrl={getDisplayBaseUrl()} activeConnection={activeConnection} />
                 </CardContent>
             </Card>
 
@@ -341,7 +340,7 @@ export default function ApiExplorerPage() {
                         {viewMode === 'discovery' ? 'Endpoints Disponíveis' : 'Resultados'}
                     </CardTitle>
                     <CardDescription>
-                        {viewMode === 'discovery' ? 'Selecione um endpoint para explorar os dados.' : 'Dados retornados da sua consulta.'}
+                        {viewMode === 'discovery' ? `Endpoints encontrados em ${apiNamespace}` : 'Dados retornados da sua consulta.'}
                     </CardDescription>
                 </div>
                 {viewMode === 'data-explorer' && (
@@ -390,7 +389,7 @@ type Column = {
 
 // Sub-components
 
-function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { form: any, onSubmit: () => void, isPending: boolean, activeConnection: Connection | undefined | null }) {
+function QueryBuilderForm({ form, onSubmit, isPending, displayBaseUrl, activeConnection }: { form: any, onSubmit: () => void, isPending: boolean, displayBaseUrl: string, activeConnection: Connection | undefined | null }) {
   const { fields: params, append: appendParam, remove: removeParam } = useFieldArray({ control: form.control, name: "params" });
   const { fields: headers, append: appendHeader, remove: removeHeader } = useFieldArray({ control: form.control, name: "headers" });
   
@@ -407,9 +406,9 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
               <FormControl>
                 <div className="flex items-center">
                   <span className="p-2 rounded-l-md bg-muted text-muted-foreground text-sm whitespace-nowrap">
-                    {activeConnection?.baseUrl ? activeConnection.baseUrl : 'Selecione uma conexão'}
+                    {displayBaseUrl}
                   </span>
-                  <Input {...field} placeholder="/wp-json/v1/users" className="rounded-l-none font-code" />
+                  <Input {...field} placeholder="/endpoint" className="rounded-l-none font-code" />
                 </div>
               </FormControl>
             </FormItem>
@@ -611,5 +610,3 @@ function DiscoveryView({ data, onExplore }: { data: any, onExplore: (path: strin
       </ScrollArea>
     );
   }
-
-    
