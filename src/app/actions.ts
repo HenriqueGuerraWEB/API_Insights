@@ -91,14 +91,8 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
             const basicAuth = Buffer.from(`${connection.auth.username}:${connection.auth.password}`).toString('base64');
             finalHeaders['Authorization'] = `Basic ${basicAuth}`;
         } else if (connection.auth.type === 'wooCommerce' && connection.auth.consumerKey && connection.auth.consumerSecret) {
-            // For WooCommerce, we might need to add keys to params if not already on headers
-            // This ensures compatibility even if user changes URL
-            if (!finalUrl.searchParams.has('consumer_key')) {
-                finalUrl.searchParams.append('consumer_key', connection.auth.consumerKey);
-            }
-            if (!finalUrl.searchParams.has('consumer_secret')) {
-                finalUrl.searchParams.append('consumer_secret', connection.auth.consumerSecret);
-            }
+            const wooAuth = `Basic ${Buffer.from(`${connection.auth.consumerKey}:${connection.auth.consumerSecret}`).toString('base64')}`;
+            finalHeaders['Authorization'] = wooAuth;
         }
     }
     
