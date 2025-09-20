@@ -55,12 +55,13 @@ export function useConnections() {
 
     } catch (error) {
       console.error("Failed to load connections from localStorage", error);
+      toast({ variant: "destructive", title: "Erro ao Carregar Dados", description: "Não foi possível carregar as conexões salvas."})
       window.localStorage.removeItem(CONNECTIONS_STORAGE_KEY);
       window.localStorage.removeItem(ACTIVE_CONNECTION_ID_STORAGE_KEY);
       setConnections([]);
       setActiveConnectionIdState(null);
     }
-  }, []);
+  }, [toast]);
 
   const setActiveConnectionId = useCallback((id: string | null) => {
     try {
@@ -93,11 +94,11 @@ export function useConnections() {
       window.localStorage.setItem(CONNECTIONS_STORAGE_KEY, JSON.stringify(newConnections));
     } catch (error) {
       console.error("Failed to save connections to localStorage", error);
+      toast({ variant: "destructive", title: "Erro ao Salvar", description: "Não foi possível atualizar as conexões salvas." });
     }
     
     if (activeConnectionId === id) {
-      const newActiveId = newConnections.length > 0 ? newConnections[0].id : null;
-      setActiveConnectionId(newActiveId);
+      setActiveConnectionId(null);
     }
     
     toast({
@@ -110,18 +111,15 @@ export function useConnections() {
   const activeConnection = useMemo(
     () => {
         if (!activeConnectionId) return null;
-        let found = connections.find(c => c.id === activeConnectionId);
+        const found = connections.find(c => c.id === activeConnectionId);
 
-        if (!found && connections.length > 0) {
-            const newActiveId = connections[0].id;
-            setActiveConnectionId(newActiveId);
-            return connections[0];
-        } else if (!found && connections.length === 0) {
+        // If the active ID is invalid (e.g., deleted), clear it.
+        if (!found) {
             setActiveConnectionId(null);
             return null;
         }
 
-        return found || null;
+        return found;
     },
     [connections, activeConnectionId, setActiveConnectionId]
   );
@@ -135,3 +133,5 @@ export function useConnections() {
     setActiveConnectionId,
   };
 }
+
+    

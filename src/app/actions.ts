@@ -19,17 +19,52 @@ export type FetchApiDataOutput = {
   error?: string;
 };
 
+// Helper function to build the final URL based on API type
 function buildUrl(baseUrl: string, path: string, apiType: 'wordpress' | 'generic'): string {
-    let finalUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    let finalPath = path.startsWith('/') ? path : `/${path}`;
+    const trimmedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    const trimmedPath = path.startsWith('/') ? path : `/${path}`;
 
-    if (apiType === 'wordpress' && finalPath) {
-        finalUrl += `/wp-json${finalPath}`;
-    } else {
-        finalUrl += finalPath;
+    if (apiType === 'wordpress' && !trimmedPath.startsWith('/wp-json')) {
+        return `${trimmedBaseUrl}/wp-json${trimmedPath}`;
     }
-    return finalUrl;
+    
+    return `${trimmedBaseUrl}${trimmedPath}`;
 }
+
+
+// In-memory cache for this server instance. For a more robust solution,
+// consider a shared cache like Redis.
+const aiNameSuggestionCache: Record<string, Record<string, string>> = {};
+
+// Function to get or fetch AI-suggested names
+async function getOrFetchAiSuggestions(cacheKey: string, keys: string[]): Promise<Record<string, string>> {
+    if (aiNameSuggestionCache[cacheKey]) {
+        return aiNameSuggestionCache[cacheKey];
+    }
+    
+    if (keys.length === 0) {
+        return {};
+    }
+
+    try {
+        const suggestionOutput = await suggestFriendlyNames({ apiKeys: keys });
+        const suggestedNames = suggestionOutput.suggestions.reduce((acc, { key, friendlyName }) => {
+            acc[key] = friendlyName;
+            return acc;
+        }, {} as Record<string, string>);
+
+        aiNameSuggestionCache[cacheKey] = suggestedNames; // Cache the result
+        return suggestedNames;
+    } catch (aiError: any) {
+        console.error("AI suggestion failed:", aiError);
+        // On AI failure, fallback to using original keys as names
+        return keys.reduce((acc, key) => {
+            acc[key] = key;
+            return acc;
+        }, {} as Record<string, string>);
+    }
+}
+
 
 export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema>): Promise<FetchApiDataOutput> {
   try {
@@ -56,21 +91,16 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
     const data = await response.json();
     const dataArray = Array.isArray(data) ? data : [data];
 
-    if (dataArray.length === 0 || (dataArray.length === 1 && Object.keys(dataArray[0]).length === 0)) {
-      return { data: [], suggestedNames: {}, error: 'A resposta da API está vazia ou não é um JSON válido.' };
+    if (dataArray.length === 0) {
+      return { data: [], suggestedNames: {}, error: 'A resposta da API está vazia.' };
     }
 
+    // Generate a unique cache key for the endpoint
+    const cacheKey = `${validatedInput.url}${validatedInput.path}`;
+    
     const keys = Array.from(new Set(dataArray.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
     
-    if (keys.length === 0) {
-       return { data: dataArray, suggestedNames: {}, error: 'Nenhuma chave encontrada nos dados da API.' };
-    }
-
-    const suggestionOutput = await suggestFriendlyNames({ apiKeys: keys });
-    const suggestedNames = suggestionOutput.suggestions.reduce((acc, { key, friendlyName }) => {
-        acc[key] = friendlyName;
-        return acc;
-    }, {} as Record<string, string>);
+    const suggestedNames = await getOrFetchAiSuggestions(cacheKey, keys);
 
     return { data: dataArray, suggestedNames };
 
@@ -158,3 +188,5 @@ export async function exportData(input: z.infer<typeof exportDataInputSchema>): 
         return { content: '', mimeType: '', fileName: '', error: error.message || 'Ocorreu um erro desconhecido durante a exportação.' };
     }
 }
+
+    
