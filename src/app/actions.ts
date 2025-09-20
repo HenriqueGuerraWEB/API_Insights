@@ -1,3 +1,4 @@
+
 'use server';
 
 import { suggestFriendlyNames } from '@/ai/flows/ai-schema-assistant';
@@ -5,6 +6,8 @@ import { z } from 'zod';
 
 const fetchApiDataInputSchema = z.object({
   url: z.string().url({ message: "URL inválida." }),
+  apiType: z.enum(["wordpress", "generic"]),
+  path: z.string(),
   method: z.string(),
   headers: z.record(z.string()),
   body: z.string().nullable(),
@@ -16,16 +19,27 @@ export type FetchApiDataOutput = {
   error?: string;
 };
 
+function buildUrl(baseUrl: string, path: string, apiType: 'wordpress' | 'generic'): string {
+    let finalUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    let finalPath = path.startsWith('/') ? path : `/${path}`;
+
+    if (apiType === 'wordpress' && finalPath) {
+        finalUrl += `/wp-json${finalPath}`;
+    } else {
+        finalUrl += finalPath;
+    }
+    return finalUrl;
+}
+
 export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema>): Promise<FetchApiDataOutput> {
   try {
     const validatedInput = fetchApiDataInputSchema.parse(input);
     
-    // Prepend https:// if no protocol is present
-    let url = validatedInput.url;
+    let url = buildUrl(validatedInput.url, validatedInput.path, validatedInput.apiType);
+
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       url = 'https://' + url;
     }
-
 
     const response = await fetch(url, {
       method: validatedInput.method,
@@ -46,7 +60,7 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
       return { data: [], suggestedNames: {}, error: 'A resposta da API está vazia ou não é um JSON válido.' };
     }
 
-    const keys = Array.from(new Set(dataArray.flatMap(item => Object.keys(item))));
+    const keys = Array.from(new Set(dataArray.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
     
     if (keys.length === 0) {
        return { data: dataArray, suggestedNames: {}, error: 'Nenhuma chave encontrada nos dados da API.' };

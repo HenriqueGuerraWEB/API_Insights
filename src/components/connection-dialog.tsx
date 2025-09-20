@@ -26,11 +26,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Connection } from "./api-explorer-page";
+import type { Connection } from "@/hooks/use-connections";
 
 const connectionSchema = z.object({
   name: z.string().min(1, "O nome é obrigatório."),
   baseUrl: z.string().url("URL inválida.").min(1, "A URL base é obrigatória."),
+  apiType: z.enum(["wordpress", "generic"]),
   authMethod: z.enum(["none", "bearer", "apiKey"]),
   authToken: z.string().optional(),
   apiKeyHeader: z.string().optional(),
@@ -53,6 +54,7 @@ export function ConnectionDialogContent({ onSave, onCancel }: { onSave: (data: O
     defaultValues: {
       name: "",
       baseUrl: "",
+      apiType: "generic",
       authMethod: "none",
       authToken: "",
       apiKeyHeader: "",
@@ -77,7 +79,10 @@ export function ConnectionDialogContent({ onSave, onCancel }: { onSave: (data: O
             <FormItem><FormLabel>Nome</FormLabel><FormControl><Input {...field} placeholder="API de Clientes" /></FormControl><FormMessage /></FormItem>
           )} />
           <FormField name="baseUrl" control={form.control} render={({ field }) => (
-            <FormItem><FormLabel>URL Base</FormLabel><FormControl><Input {...field} placeholder="https://api.example.com/v1" /></FormControl><FormMessage /></FormItem>
+            <FormItem><FormLabel>URL Base</FormLabel><FormControl><Input {...field} placeholder="https://api.example.com" /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField name="apiType" control={form.control} render={({ field }) => (
+            <FormItem><FormLabel>Tipo de API</FormLabel><Select onValuechange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent><SelectItem value="generic">Genérica (REST)</SelectItem><SelectItem value="wordpress">WordPress</SelectItem></SelectContent></Select><FormMessage /></FormItem>
           )} />
           <FormField name="authMethod" control={form.control} render={({ field }) => (
             <FormItem><FormLabel>Autenticação</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent><SelectItem value="none">Nenhuma</SelectItem><SelectItem value="bearer">Bearer Token</SelectItem><SelectItem value="apiKey">API Key</SelectItem></SelectContent></Select><FormMessage /></FormItem>
@@ -104,5 +109,3 @@ export function ConnectionDialogContent({ onSave, onCancel }: { onSave: (data: O
     </Form>
   );
 }
-
-    

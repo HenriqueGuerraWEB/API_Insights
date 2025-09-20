@@ -17,6 +17,7 @@ export type Connection = {
   id: string;
   name: string;
   baseUrl: string;
+  apiType: "wordpress" | "generic";
   authMethod: "none" | "bearer" | "apiKey";
   authToken?: string;
   apiKeyHeader?: string;
@@ -36,7 +37,13 @@ export function useConnections() {
     try {
       const savedConnections = window.localStorage.getItem(CONNECTIONS_STORAGE_KEY);
       if (savedConnections) {
-        setConnections(JSON.parse(savedConnections));
+        // Migration: Ensure old connections have a default apiType
+        const parsedConnections = JSON.parse(savedConnections);
+        const migratedConnections = parsedConnections.map((conn: any) => ({
+            ...conn,
+            apiType: conn.apiType || 'generic' 
+        }));
+        setConnections(migratedConnections);
       }
       
       const savedActiveId = window.localStorage.getItem(ACTIVE_CONNECTION_ID_STORAGE_KEY);

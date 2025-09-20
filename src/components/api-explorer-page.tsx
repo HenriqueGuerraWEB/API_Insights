@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useMemo, useTransition, useCallback, useEffect } from "react";
@@ -100,35 +99,32 @@ export default function ApiExplorerPage() {
   const [isNewConnectionDialogOpen, setIsNewConnectionDialogOpen] = useState(false);
 
   const queryForm = useForm<{ method: string, path: string, body: string, params: {key:string, value:string}[], headers: {key:string, value:string}[] }>({
-    defaultValues: { method: "GET", path: "", body: "", params: [], headers: [] },
+    defaultValues: { method: "GET", path: "/", body: "", params: [], headers: [] },
   });
   
+  const handleSetActiveConnection = useCallback((id: string | null) => {
+    setActiveConnectionId(id);
+  }, [setActiveConnectionId]);
+
   useEffect(() => {
     if (activeConnection) {
-        setViewMode('data-explorer'); // Or some initial state when a connection is active
-        try {
-            // Path will be set by the namespace/discovery logic now
-            // queryForm.setValue('path', '/');
-        } catch (e) {
-            queryForm.setValue('path', '/');
-        }
+        setViewMode('data-explorer');
     } else if (connections.length > 0 && !activeConnection) {
-        // This case is tricky. If there are connections, but none is active (e.g. after deleting one)
-        // select the first one.
-        setActiveConnectionId(connections[0].id);
+        handleSetActiveConnection(connections[0].id);
     } else { // No connections
         setViewMode('welcome');
     }
-  }, [activeConnection, connections, setActiveConnectionId, queryForm]);
+  }, [activeConnection, connections, handleSetActiveConnection]);
 
 
   useEffect(() => {
     if (activeConnection) {
         // When active connection changes, try to fetch the schema/namespace
-        queryForm.setValue('path', '/');
+        const discoveryPath = activeConnection.apiType === 'wordpress' ? '/' : '/';
+        queryForm.setValue('path', discoveryPath);
+
         const fetchNamespace = async () => {
              startTransition(async () => {
-                const url = new URL(activeConnection.baseUrl);
                 const finalHeaders: Record<string, string> = { "Content-Type": "application/json" };
                 if (activeConnection.authMethod === 'bearer' && activeConnection.authToken) {
                     finalHeaders['Authorization'] = `Bearer ${activeConnection.authToken}`;
@@ -136,7 +132,9 @@ export default function ApiExplorerPage() {
                     finalHeaders[activeConnection.apiKeyHeader] = activeConnection.apiKeyValue;
                 }
                 const result = await fetchApiData({
-                    url: url.toString(),
+                    url: activeConnection.baseUrl,
+                    apiType: activeConnection.apiType,
+                    path: discoveryPath,
                     method: 'GET',
                     headers: finalHeaders,
                     body: null,
@@ -144,13 +142,11 @@ export default function ApiExplorerPage() {
                 setApiResponse(result);
 
                 if (!result.error && result.data) {
-                    const isSchema = (Array.isArray(result.data) ? result.data[0] : result.data)?.routes;
+                    const firstItem = Array.isArray(result.data) ? result.data[0] : result.data;
+                    const isSchema = firstItem && typeof firstItem === 'object' && ('routes' in firstItem || 'namespace' in firstItem);
+                    
                     if(isSchema) {
                         setViewMode('discovery');
-                        const namespace = (Array.isArray(result.data) ? result.data[0] : result.data)?.namespace;
-                        if(namespace){
-                            queryForm.setValue('path', `/wp-json/${namespace}`);
-                        }
                     } else {
                         setViewMode('data-explorer');
                         setDisplayData(result.data);
@@ -169,13 +165,6 @@ export default function ApiExplorerPage() {
 
   const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
   const visibleColumns = useMemo(() => sortedColumns.filter(c => c.visible), [sortedColumns]);
-  
-  const isApiResponseSchema = useMemo(() => {
-    if (!apiResponse?.data) return false;
-    const firstItem = Array.isArray(apiResponse.data) ? apiResponse.data[0] : apiResponse.data;
-    return firstItem && typeof firstItem === 'object' && 'routes' in firstItem && 'namespace' in firstItem;
-  }, [apiResponse]);
-
 
   const handleExecuteQuery = queryForm.handleSubmit(async (values) => {
     if (!activeConnection) {
@@ -186,10 +175,10 @@ export default function ApiExplorerPage() {
     startTransition(async () => {
       setApiResponse(null);
       
-      const url = new URL(activeConnection.baseUrl);
-      // The path field now holds the full path from the domain root
-      url.pathname = values.path;
-      values.params.forEach(p => p.key && url.searchParams.append(p.key, p.value));
+      const queryParams = new URLSearchParams();
+      values.params.forEach(p => p.key && queryParams.append(p.key, p.value));
+      const queryString = queryParams.toString();
+      const pathWithParams = queryString ? `${values.path}?${queryString}` : values.path;
 
       const finalHeaders: Record<string, string> = { "Content-Type": "application/json" };
       values.headers.forEach(h => h.key && (finalHeaders[h.key] = h.value));
@@ -201,7 +190,9 @@ export default function ApiExplorerPage() {
       }
       
       const result = await fetchApiData({
-        url: url.toString(),
+        url: activeConnection.baseUrl,
+        apiType: activeConnection.apiType,
+        path: pathWithParams,
         method: values.method,
         headers: finalHeaders,
         body: values.body,
@@ -213,7 +204,9 @@ export default function ApiExplorerPage() {
         setViewMode('data-explorer'); // Stay in data explorer to show error
         setDisplayData([]);
       } else if (result.data) {
-        const isSchema = (Array.isArray(result.data) ? result.data[0] : result.data)?.routes;
+        const firstItem = Array.isArray(result.data) ? result.data[0] : result.data;
+        const isSchema = firstItem && typeof firstItem === 'object' && ('routes' in firstItem || 'namespace' in firstItem);
+
         if(isSchema) {
             setViewMode('discovery');
             setDisplayData([]);
@@ -294,7 +287,7 @@ export default function ApiExplorerPage() {
           activeConnectionId={activeConnection?.id || null}
           onAddConnection={() => setIsNewConnectionDialogOpen(true)}
           onDeleteConnection={deleteConnection}
-          onSelectConnection={setActiveConnectionId}
+          onSelectConnection={handleSetActiveConnection}
         />
         
         <Dialog open={isNewConnectionDialogOpen} onOpenChange={setIsNewConnectionDialogOpen}>
@@ -384,6 +377,15 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
   const { fields: params, append: appendParam, remove: removeParam } = useFieldArray({ control: form.control, name: "params" });
   const { fields: headers, append: appendHeader, remove: removeHeader } = useFieldArray({ control: form.control, name: "headers" });
   
+  const getDisplayUrl = () => {
+    if (!activeConnection) return 'Selecione uma conexão';
+    let url = activeConnection.baseUrl;
+    if (activeConnection.apiType === 'wordpress') {
+      url += '/wp-json';
+    }
+    return new URL(url).origin;
+  }
+
   return (
     <Form {...form}>
       <form onSubmit={onSubmit}>
@@ -392,7 +394,17 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
             <FormItem><FormLabel>Método</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem><SelectItem value="PUT">PUT</SelectItem><SelectItem value="DELETE">DELETE</SelectItem></SelectContent></Select></FormItem>
           )} />
           <FormField name="path" control={form.control} render={({ field }) => (
-            <FormItem className="flex-1"><FormLabel>Endpoint Path</FormLabel><FormControl><div className="flex items-center"><span className="p-2 rounded-l-md bg-muted text-muted-foreground text-sm">{activeConnection?.baseUrl ? new URL(activeConnection.baseUrl).origin : 'Selecione uma conexão'}</span><Input {...field} placeholder="/wp-json/v2/posts" className="rounded-l-none" /></div></FormControl></FormItem>
+            <FormItem className="flex-1">
+              <FormLabel>Endpoint Path</FormLabel>
+              <FormControl>
+                <div className="flex items-center">
+                  <span className="p-2 rounded-l-md bg-muted text-muted-foreground text-sm whitespace-nowrap">
+                    {activeConnection?.baseUrl ? new URL(activeConnection.baseUrl).origin : 'Selecione uma conexão'}
+                  </span>
+                  <Input {...field} placeholder="/v1/users" className="rounded-l-none font-code" />
+                </div>
+              </FormControl>
+            </FormItem>
           )} />
           <Button type="submit" variant="primary" disabled={isPending || !activeConnection} className="h-10">
             {isPending ? <Sparkles className="mr-2 size-4 animate-spin" /> : <Play className="mr-2 size-4" />}
@@ -405,8 +417,8 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
               <ScrollArea className="h-32 pr-4 -mr-4">
                 {params.map((field, index) => (
                   <div key={field.id} className="flex gap-2 mb-2">
-                    <Input {...form.register(`params.${index}.key`)} placeholder="key" className="h-8" />
-                    <Input {...form.register(`params.${index}.value`)} placeholder="value" className="h-8" />
+                    <Input {...form.register(`params.${index}.key`)} placeholder="key" className="h-8 font-code" />
+                    <Input {...form.register(`params.${index}.value`)} placeholder="value" className="h-8 font-code" />
                     <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeParam(index)}><Plus className="size-4 rotate-45" /></Button>
                   </div>
                 ))}
@@ -418,8 +430,8 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
               <ScrollArea className="h-32 pr-4 -mr-4">
                 {headers.map((field, index) => (
                    <div key={field.id} className="flex gap-2 mb-2">
-                    <Input {...form.register(`headers.${index}.key`)} placeholder="key" className="h-8"/>
-                    <Input {...form.register(`headers.${index}.value`)} placeholder="value" className="h-8"/>
+                    <Input {...form.register(`headers.${index}.key`)} placeholder="key" className="h-8 font-code"/>
+                    <Input {...form.register(`headers.${index}.value`)} placeholder="value" className="h-8 font-code"/>
                     <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeHeader(index)}><Plus className="size-4 rotate-45" /></Button>
                   </div>
                 ))}
@@ -590,7 +602,3 @@ function DiscoveryView({ data, onExplore }: { data: any, onExplore: (path: strin
       </ScrollArea>
     );
   }
-
-    
-
-    
