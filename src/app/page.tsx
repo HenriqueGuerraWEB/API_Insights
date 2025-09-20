@@ -1,3 +1,9 @@
+import ApiExplorerPage from "@/components/api-explorer-page";
+
 export default function Home() {
-  return <></>;
+  return (
+    <main>
+      <ApiExplorerPage />
+    </main>
+  );
 }
