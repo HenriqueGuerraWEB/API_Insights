@@ -2,8 +2,16 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { v4 as uuidv4 } from "uuid";
-import { useToast } from './use-toast';
+import { toast } from './use-toast';
+
+// A simple in-memory UUID generator since the full `uuid` package might be overkill.
+const uuidv4 = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 
 export type Connection = {
   id: string;
@@ -32,13 +40,22 @@ export function useConnections() {
       }
       
       const savedActiveId = window.localStorage.getItem(ACTIVE_CONNECTION_ID_STORAGE_KEY);
-      if (savedActiveId) {
-        setActiveConnectionIdState(JSON.parse(savedActiveId));
+      // Ensure we don't set a non-string value, null is ok.
+      if (savedActiveId && savedActiveId !== "null" && savedActiveId !== "undefined") {
+         setActiveConnectionIdState(JSON.parse(savedActiveId));
+      } else {
+         setActiveConnectionIdState(null);
       }
+
     } catch (error) {
       console.error("Failed to load connections from localStorage", error);
+       // If parsing fails, reset to a clean state.
+      window.localStorage.removeItem(CONNECTIONS_STORAGE_KEY);
+      window.localStorage.removeItem(ACTIVE_CONNECTION_ID_STORAGE_KEY);
+      setConnections([]);
+      setActiveConnectionIdState(null);
     }
-  }, []); // Empty dependency array ensures this runs only once
+  }, []);
 
   const setActiveConnectionId = useCallback((id: string | null) => {
     try {
@@ -51,53 +68,54 @@ export function useConnections() {
 
   const addConnection = useCallback((conn: Omit<Connection, "id">) => {
     const newConnection = { ...conn, id: uuidv4() };
-    setConnections(prev => {
-      const updatedConnections = [...prev, newConnection];
-      try {
-        window.localStorage.setItem(CONNECTIONS_STORAGE_KEY, JSON.stringify(updatedConnections));
-      } catch (error) {
-        console.error("Failed to save connections to localStorage", error);
-      }
-      setActiveConnectionId(newConnection.id);
-      return updatedConnections;
-    });
-  }, [setActiveConnectionId]);
+    const updatedConnections = [...connections, newConnection];
+    
+    setConnections(updatedConnections);
+    setActiveConnectionId(newConnection.id);
+
+    try {
+      window.localStorage.setItem(CONNECTIONS_STORAGE_KEY, JSON.stringify(updatedConnections));
+    } catch (error) {
+      console.error("Failed to save connections to localStorage", error);
+    }
+  }, [connections, setActiveConnectionId]);
 
   const deleteConnection = useCallback((id: string) => {
-    if (connections.length <= 1) {
-      toast({
-        variant: "destructive",
-        title: "Ação não permitida",
-        description: "Não é possível apagar a última fonte de dados existente.",
-      });
-      return;
+    const newConnections = connections.filter(c => c.id !== id);
+    setConnections(newConnections);
+    
+    try {
+      window.localStorage.setItem(CONNECTIONS_STORAGE_KEY, JSON.stringify(newConnections));
+    } catch (error) {
+      console.error("Failed to save connections to localStorage", error);
     }
     
-    setConnections(prev => {
-      const newConnections = prev.filter(c => c.id !== id);
-      try {
-        window.localStorage.setItem(CONNECTIONS_STORAGE_KEY, JSON.stringify(newConnections));
-      } catch (error) {
-        console.error("Failed to save connections to localStorage", error);
-      }
-      
-      if (activeConnectionId === id) {
-        const newActiveId = newConnections.length > 0 ? newConnections[0].id : null;
-        setActiveConnectionId(newActiveId);
-      }
-      
-      toast({
-        title: "Conexão Apagada",
-        description: "A fonte de dados foi removida com sucesso.",
-      });
-
-      return newConnections;
+    // If the active connection was deleted, select a new one or clear it.
+    if (activeConnectionId === id) {
+      const newActiveId = newConnections.length > 0 ? newConnections[0].id : null;
+      setActiveConnectionId(newActiveId);
+    }
+    
+    toast({
+      title: "Conexão Apagada",
+      description: "A fonte de dados foi removida com sucesso.",
     });
-  }, [connections.length, activeConnectionId, setActiveConnectionId, toast]);
+
+  }, [connections, activeConnectionId, setActiveConnectionId, toast]);
 
   const activeConnection = useMemo(
-    () => connections.find(c => c.id === activeConnectionId) || null,
-    [connections, activeConnectionId]
+    () => {
+        if (!activeConnectionId) return null;
+        const found = connections.find(c => c.id === activeConnectionId);
+        // If the active ID from storage doesn't match any connection, it's stale.
+        if (!found && connections.length > 0) {
+            // Default to the first connection
+            setActiveConnectionId(connections[0].id);
+            return connections[0];
+        }
+        return found || null;
+    },
+    [connections, activeConnectionId, setActiveConnectionId]
   );
 
   return {
@@ -109,4 +127,3 @@ export function useConnections() {
     setActiveConnectionId,
   };
 }
-
