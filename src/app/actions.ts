@@ -52,7 +52,11 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
        return { data: dataArray, suggestedNames: {}, error: 'Nenhuma chave encontrada nos dados da API.' };
     }
 
-    const suggestedNames = await suggestFriendlyNames({ apiKeys: keys });
+    const suggestionOutput = await suggestFriendlyNames({ apiKeys: keys });
+    const suggestedNames = suggestionOutput.suggestions.reduce((acc, { key, friendlyName }) => {
+        acc[key] = friendlyName;
+        return acc;
+    }, {} as Record<string, string>);
 
     return { data: dataArray, suggestedNames };
 

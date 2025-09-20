@@ -16,7 +16,12 @@ const SuggestFriendlyNamesInputSchema = z.object({
 });
 export type SuggestFriendlyNamesInput = z.infer<typeof SuggestFriendlyNamesInputSchema>;
 
-const SuggestFriendlyNamesOutputSchema = z.record(z.string(), z.string()).describe('A mapping of original API keys to suggested user-friendly names.');
+const SuggestFriendlyNamesOutputSchema = z.object({
+  suggestions: z.array(z.object({
+    key: z.string().describe('The original API key.'),
+    friendlyName: z.string().describe('The suggested user-friendly name.'),
+  })).describe('A list of key-name suggestions.')
+});
 export type SuggestFriendlyNamesOutput = z.infer<typeof SuggestFriendlyNamesOutputSchema>;
 
 export async function suggestFriendlyNames(input: SuggestFriendlyNamesInput): Promise<SuggestFriendlyNamesOutput> {
@@ -31,7 +36,7 @@ const prompt = ai.definePrompt({
 
 Keys: {{{apiKeys}}}
 
-Return a mapping in JSON format: {\'original_key\': \'suggested_name\'}.`, safetySettings: [
+Return a list of suggestions.`, safetySettings: [
     {
       category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
       threshold: 'BLOCK_NONE',
