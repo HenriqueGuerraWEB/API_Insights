@@ -267,7 +267,7 @@ export default function ApiExplorerPage() {
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader className="p-4 flex justify-center">
-          <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20">
+           <div className="w-8 h-8 flex items-center justify-center">
             <Rocket className="size-5 text-primary" />
           </div>
         </SidebarHeader>
@@ -341,7 +341,14 @@ function ConnectionDialog({ onSave }: { onSave: (data: Omit<Connection, 'id'>) =
   const [isOpen, setIsOpen] = useState(false);
   const form = useForm<z.infer<typeof connectionSchema>>({
     resolver: zodResolver(connectionSchema),
-    defaultValues: { name: "", baseUrl: "", authMethod: "none" },
+    defaultValues: {
+      name: "",
+      baseUrl: "",
+      authMethod: "none",
+      authToken: "",
+      apiKeyHeader: "",
+      apiKeyValue: "",
+    },
   });
   const authMethod = form.watch("authMethod");
 
@@ -572,3 +579,5 @@ const InitialState = () => (
       </p>
     </div>
   );
+
+    
