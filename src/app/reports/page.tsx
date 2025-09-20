@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Calendar as CalendarIcon, AlertCircle, Loader2, BarChart, ShoppingBag, DollarSign, ListOrdered } from "lucide-react";
+import { Calendar as CalendarIcon, AlertCircle, Loader2, BarChart, ShoppingBag, DollarSign, ListOrdered, CheckIcon } from "lucide-react";
 import { useConnections } from "@/hooks/use-connections";
 import { cn } from "@/lib/utils";
 import { calculateFinancialMetrics } from "@/lib/report-calculator";
@@ -50,6 +50,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 
 const reportFormSchema = z.object({
@@ -279,10 +280,6 @@ export default function ReportsPage() {
   );
 }
 
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { CheckIcon } from "lucide-react";
-
-
 const LoadingState = () => (
     <div className="flex flex-col items-center justify-center h-full text-center p-8 text-muted-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -314,69 +311,70 @@ const InitialState = () => (
     </div>
 );
 
-const ReportResults = ({ data }: { data: FinancialReport }) => (
-    <div className="flex flex-col gap-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Receita Bruta</CardTitle>
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{data.grossRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-                    <p className="text-xs text-muted-foreground">Receita total no período selecionado</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total de Pedidos</CardTitle>
-                    <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{data.totalOrders}</div>
-                    <p className="text-xs text-muted-foreground">Número de pedidos com os status selecionados</p>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
-                    <ListOrdered className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{data.averageTicket.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-                    <p className="text-xs text-muted-foreground">Valor médio por pedido</p>
-                </CardContent>
-            </Card>
-        </Card>
-        </div>
+const ReportResults = ({ data }: { data: FinancialReport }) => {
+    return (
+        <div className="flex flex-col gap-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Receita Bruta</CardTitle>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{data.grossRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+                        <p className="text-xs text-muted-foreground">Receita total no período selecionado</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total de Pedidos</CardTitle>
+                        <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{data.totalOrders}</div>
+                        <p className="text-xs text-muted-foreground">Número de pedidos com os status selecionados</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
+                        <ListOrdered className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{data.averageTicket.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+                        <p className="text-xs text-muted-foreground">Valor médio por pedido</p>
+                    </CardContent>
+                </Card>
+            </div>
 
-        <Card>
-            <CardHeader>
-                <CardTitle>Produtos Mais Vendidos</CardTitle>
-                <CardDescription>Produtos com maior quantidade vendida no período.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <ScrollArea className="h-[400px]">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Produto</TableHead>
-                                <TableHead className="text-right">Quantidade Vendida</TableHead>
-                                <TableHead className="text-right">Receita Gerada</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {data.topSellingProducts.map((product) => (
-                                <TableRow key={product.productId}>
-                                    <TableCell className="font-medium">{product.name}</TableCell>
-                                    <TableCell className="text-right">{product.quantity}</TableCell>
-                                    <TableCell className="text-right">{product.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Produtos Mais Vendidos</CardTitle>
+                    <CardDescription>Produtos com maior quantidade vendida no período.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ScrollArea className="h-[400px]">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Produto</TableHead>
+                                    <TableHead className="text-right">Quantidade Vendida</TableHead>
+                                    <TableHead className="text-right">Receita Gerada</TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </ScrollArea>
-            </CardContent>
-        </Card>
-    </div>
-);
+                            </TableHeader>
+                            <TableBody>
+                                {data.topSellingProducts.map((product) => (
+                                    <TableRow key={product.productId}>
+                                        <TableCell className="font-medium">{product.name}</TableCell>
+                                        <TableCell className="text-right">{product.quantity}</TableCell>
+                                        <TableCell className="text-right">{product.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
