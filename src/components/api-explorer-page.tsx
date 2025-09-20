@@ -109,10 +109,7 @@ export default function ApiExplorerPage() {
     setActiveConnectionId(id);
     const newActiveConnection = connections.find(c => c.id === id);
     if (newActiveConnection) {
-        // Reset path and execute query to fetch the base schema for the new connection.
         queryForm.setValue('path', '/');
-        // We need to pass the connection object directly because the `activeConnection` state
-        // might not have updated yet due to React's async nature.
         handleExecuteQuery(newActiveConnection);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,7 +123,6 @@ export default function ApiExplorerPage() {
         handleExecuteQuery(activeConnection);
       }
     } else if (connections.length > 0 && !activeConnection) {
-      // If there are connections but none is active, set the first one as active.
       setActiveConnectionId(connections[0].id);
     } else { // No connections
       setViewMode('welcome');
@@ -150,11 +146,9 @@ export default function ApiExplorerPage() {
       startTransition(async () => {
         setApiResponse(null);
         
-        let pathWithParams = values.path;
-        
         const result = await fetchApiData({
           connection: currentConnection,
-          path: pathWithParams,
+          path: values.path,
           method: values.method,
           body: values.body,
           params: values.params,
@@ -176,17 +170,16 @@ export default function ApiExplorerPage() {
       setApiNamespace(null);
     } else if (result.data) {
         const firstItem = Array.isArray(result.data) ? result.data[0] : result.data;
-        // A schema response from WordPress has a 'routes' key.
         const isSchema = firstItem && typeof firstItem === 'object' && 'routes' in firstItem;
         
         if (isSchema && activeConnection?.apiType === 'wordpress') {
             setViewMode('discovery');
-            setDisplayData(result.data); // Keep the schema data for the discovery view
+            setDisplayData(result.data); 
             setApiNamespace(result.namespace);
         } else {
             setViewMode('data-explorer');
             setDisplayData(result.data);
-            setApiNamespace(null); // Not in a namespace view
+            setApiNamespace(null); 
             const newColumns = Object.keys(result.suggestedNames).map((key, index) => ({
               key,
               friendlyName: result.suggestedNames[key] || key,
@@ -249,20 +242,7 @@ export default function ApiExplorerPage() {
   };
   
   const handleExploreEndpoint = (path: string) => {
-      if (!activeConnection?.baseUrl) return;
-
-      let relativePath = path;
-      try {
-        // Create a URL object for the full path to easily extract the pathname
-        const fullUrl = new URL(path, activeConnection.baseUrl);
-        // The path we want to set in the form is the pathname from the URL
-        relativePath = fullUrl.pathname;
-      } catch (e) {
-         // If path is not a full URL, treat it as a relative path
-         relativePath = path;
-      }
-      
-      queryForm.setValue('path', relativePath);
+      queryForm.setValue('path', path);
       handleExecuteQuery();
   };
   
@@ -271,14 +251,7 @@ export default function ApiExplorerPage() {
       if (!activeConnection) return 'Selecione uma conexão';
       
       let displayUrl = activeConnection.baseUrl;
-      if (activeConnection.apiType === 'wordpress' && apiNamespace) {
-          // If a namespace is detected (e.g. /wp-json), we don't need to append it again.
-          if (!displayUrl.includes(apiNamespace)) {
-              displayUrl = `${displayUrl}${apiNamespace}`;
-          }
-      } else if (apiNamespace) {
-          displayUrl = `${displayUrl}${apiNamespace}`;
-      }
+      
       return displayUrl.endsWith('/') ? displayUrl.slice(0, -1) : displayUrl;
   }
 
@@ -317,7 +290,7 @@ export default function ApiExplorerPage() {
           <PageContainer>
             <Card className="bg-card/80 backdrop-blur-xl">
                 <CardContent className="p-4">
-                    <QueryBuilderForm form={queryForm} onSubmit={() => handleExecuteQuery()} isPending={isPending} displayBaseUrl={getDisplayBaseUrl()} activeConnection={activeConnection} />
+                    <QueryBuilderForm form={queryForm} onSubmit={() => handleExecuteQuery()} isPending={isPending} activeConnection={activeConnection} />
                 </CardContent>
             </Card>
 
@@ -378,7 +351,7 @@ type Column = {
 
 // Sub-components
 
-function QueryBuilderForm({ form, onSubmit, isPending, displayBaseUrl, activeConnection }: { form: any, onSubmit: () => void, isPending: boolean, displayBaseUrl: string, activeConnection: Connection | undefined | null }) {
+function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { form: any, onSubmit: () => void, isPending: boolean, activeConnection: Connection | undefined | null }) {
   const { fields: params, append: appendParam, remove: removeParam } = useFieldArray({ control: form.control, name: "params" });
   const { fields: headers, append: appendHeader, remove: removeHeader } = useFieldArray({ control: form.control, name: "headers" });
   
@@ -391,13 +364,13 @@ function QueryBuilderForm({ form, onSubmit, isPending, displayBaseUrl, activeCon
           )} />
           <FormField name="path" control={form.control} render={({ field }) => (
             <FormItem className="flex-1">
-              <FormLabel>URL Base + Caminho do Endpoint</FormLabel>
+              <FormLabel>Caminho do Endpoint</FormLabel>
               <FormControl>
-                <div className="flex items-center">
-                  <span className="p-2 rounded-l-md bg-muted text-muted-foreground text-sm whitespace-nowrap">
-                    {displayBaseUrl}
+                <div className="flex flex-col">
+                  <span className="text-sm text-muted-foreground font-code mb-1">
+                    Base: {activeConnection?.baseUrl || 'N/A'}
                   </span>
-                  <Input {...field} placeholder="/caminho/do/endpoint" className="rounded-l-none font-code" />
+                  <Input {...field} placeholder="/caminho/do/endpoint" className="font-code" />
                 </div>
               </FormControl>
             </FormItem>
@@ -582,7 +555,7 @@ function DiscoveryView({ data, onExplore }: { data: any, onExplore: (path: strin
                 <CardTitle className="text-lg font-code break-all">{path}</CardTitle>
                 <div className="flex gap-2 pt-2">
                   {routeInfo.methods.map((method: string, index: number) => (
-                     <Badge key={`${method}-${index}`} variant={method === 'GET' ? 'secondary' : 'outline'}>{method}</Badge>
+                     <Badge key={`${path}-${method}-${index}`} variant={method === 'GET' ? 'secondary' : 'outline'}>{method}</Badge>
                   ))}
                 </div>
               </CardHeader>
@@ -599,5 +572,4 @@ function DiscoveryView({ data, onExplore }: { data: any, onExplore: (path: strin
     );
   }
 
-
-
+    
