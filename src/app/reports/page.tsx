@@ -52,7 +52,7 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
+import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 
@@ -134,183 +134,185 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
-        <TooltipProvider>
-            <Sidebar variant="sidebar" collapsible="icon" className="hidden md:flex">
-                <SidebarHeader>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                             <Link href="/">
-                                <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20 cursor-pointer">
-                                    <Rocket className="size-5 text-primary" />
-                                </div>
-                            </Link>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">App Home</TooltipContent>
-                    </Tooltip>
-                </SidebarHeader>
-                <SidebarContent>
-                    <SidebarMenu>
-                         <SidebarMenuItem>
-                            <Link href="/">
-                                <SidebarMenuButton tooltip="API Explorer" className="justify-center">
-                                    <LayoutDashboard />
-                                </SidebarMenuButton>
-                            </Link>
-                        </SidebarMenuItem>
-                    </SidebarMenu>
-                </SidebarContent>
-            </Sidebar>
-        </TooltipProvider>
+    <SidebarProvider>
+      <div className="flex h-screen bg-background text-foreground">
+          <TooltipProvider>
+              <Sidebar variant="sidebar" collapsible="icon" className="hidden md:flex">
+                  <SidebarHeader>
+                      <Tooltip>
+                          <TooltipTrigger asChild>
+                               <Link href="/">
+                                  <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20 cursor-pointer">
+                                      <Rocket className="size-5 text-primary" />
+                                  </div>
+                              </Link>
+                          </TooltipTrigger>
+                          <TooltipContent side="right">App Home</TooltipContent>
+                      </Tooltip>
+                  </SidebarHeader>
+                  <SidebarContent>
+                      <SidebarMenu>
+                           <SidebarMenuItem>
+                              <Link href="/">
+                                  <SidebarMenuButton tooltip="API Explorer" className="justify-center">
+                                      <LayoutDashboard />
+                                  </SidebarMenuButton>
+                              </Link>
+                          </SidebarMenuItem>
+                      </SidebarMenu>
+                  </SidebarContent>
+              </Sidebar>
+          </TooltipProvider>
 
-        <div className="flex-1 flex flex-col gap-4 p-4 md:p-6 overflow-auto">
-        <Card className="bg-card/80 backdrop-blur-xl">
-            <CardHeader>
-            <CardTitle>Relatório Financeiro</CardTitle>
-            <CardDescription>
-                Selecione o período, os status dos pedidos e a fonte de dados para gerar seu relatório.
-            </CardDescription>
-            </CardHeader>
-            <CardContent>
-            <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    <FormField
-                    control={form.control}
-                    name="dateRange"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-col">
-                        <FormLabel>Período</FormLabel>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                            <Button
-                                variant={"outline"}
-                                className={cn(
-                                "w-full justify-start text-left font-normal",
-                                !field.value.from && "text-muted-foreground"
-                                )}
-                            >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {field.value.from ? (
-                                field.value.to ? (
-                                    <>
-                                    {format(field.value.from, "LLL dd, y", { locale: ptBR })} -{" "}
-                                    {format(field.value.to, "LLL dd, y", { locale: ptBR })}
-                                    </>
-                                ) : (
-                                    format(field.value.from, "LLL dd, y", { locale: ptBR })
-                                )
-                                ) : (
-                                <span>Selecione um período</span>
-                                )}
-                            </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                                mode="range"
-                                selected={{ from: field.value.from, to: field.value.to }}
-                                onSelect={(range) => field.onChange(range)}
-                                numberOfMonths={2}
-                                locale={ptBR}
-                            />
-                            </PopoverContent>
-                        </Popover>
-                        </FormItem>
-                    )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="statuses"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Status dos Pedidos</FormLabel>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                <Button variant="outline" className="w-full justify-start font-normal">
-                                    {field.value.length > 0
-                                    ? `${field.value.length} status selecionados`
-                                    : "Selecione os status"}
-                                </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-64 p-0">
-                                    <Command>
-                                        <CommandInput placeholder="Buscar status..." />
-                                        <CommandList>
-                                            <CommandEmpty>Nenhum status encontrado.</CommandEmpty>
-                                            <CommandGroup>
-                                                {ALL_STATUSES.map((status) => (
-                                                    <CommandItem
-                                                        key={status.id}
-                                                        onSelect={() => {
-                                                            const currentValues = field.value || [];
-                                                            const newValue = currentValues.includes(status.id)
-                                                                ? currentValues.filter((s) => s !== status.id)
-                                                                : [...currentValues, status.id];
-                                                            field.onChange(newValue);
-                                                        }}
-                                                    >
-                                                        <div className={cn(
-                                                            "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                            field.value.includes(status.id)
-                                                                ? "bg-primary text-primary-foreground"
-                                                                : "opacity-50 [&_svg]:invisible"
-                                                        )}>
-                                                        <CheckIcon className={cn("h-4 w-4")} />
-                                                        </div>
-                                                        <span>{status.name}</span>
-                                                    </CommandItem>
-                                                ))}
-                                            </CommandGroup>
-                                        </CommandList>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
-                            </FormItem>
-                        )}
-                        />
-                    <FormField
-                    control={form.control}
-                    name="connectionId"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Fonte de Dados</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
-                            <FormControl>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecione uma conexão" />
-                            </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                            {connections.filter(c => c.apiType === 'WordPress').map((c) => (
-                                <SelectItem key={c.id} value={c.id}>
-                                {c.name}
-                                </SelectItem>
-                            ))}
-                            </SelectContent>
-                        </Select>
-                        </FormItem>
-                    )}
-                    />
-                    <div className="flex items-end">
-                        <Button type="submit" disabled={isPending} className="w-full" variant="primary">
-                            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Gerar Relatório
-                        </Button>
-                    </div>
-                </div>
-                </form>
-            </Form>
-            </CardContent>
-        </Card>
-        
-        <div className="flex-1 flex flex-col">
-            {isPending && <LoadingState />}
-            {error && <ErrorState message={error} />}
-            {reportData && <ReportResults data={reportData} />}
-            {!isPending && !error && !reportData && <InitialState />}
-        </div>
-        </div>
-    </div>
+          <div className="flex-1 flex flex-col gap-4 p-4 md:p-6 overflow-auto">
+          <Card className="bg-card/80 backdrop-blur-xl">
+              <CardHeader>
+              <CardTitle>Relatório Financeiro</CardTitle>
+              <CardDescription>
+                  Selecione o período, os status dos pedidos e a fonte de dados para gerar seu relatório.
+              </CardDescription>
+              </CardHeader>
+              <CardContent>
+              <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                      <FormField
+                      control={form.control}
+                      name="dateRange"
+                      render={({ field }) => (
+                          <FormItem className="flex flex-col">
+                          <FormLabel>Período</FormLabel>
+                          <Popover>
+                              <PopoverTrigger asChild>
+                              <Button
+                                  variant={"outline"}
+                                  className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !field.value.from && "text-muted-foreground"
+                                  )}
+                              >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {field.value.from ? (
+                                  field.value.to ? (
+                                      <>
+                                      {format(field.value.from, "LLL dd, y", { locale: ptBR })} -{" "}
+                                      {format(field.value.to, "LLL dd, y", { locale: ptBR })}
+                                      </>
+                                  ) : (
+                                      format(field.value.from, "LLL dd, y", { locale: ptBR })
+                                  )
+                                  ) : (
+                                  <span>Selecione um período</span>
+                                  )}
+                              </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                  mode="range"
+                                  selected={{ from: field.value.from, to: field.value.to }}
+                                  onSelect={(range) => field.onChange(range)}
+                                  numberOfMonths={2}
+                                  locale={ptBR}
+                              />
+                              </PopoverContent>
+                          </Popover>
+                          </FormItem>
+                      )}
+                      />
+                      <FormField
+                          control={form.control}
+                          name="statuses"
+                          render={({ field }) => (
+                              <FormItem>
+                              <FormLabel>Status dos Pedidos</FormLabel>
+                              <Popover>
+                                  <PopoverTrigger asChild>
+                                  <Button variant="outline" className="w-full justify-start font-normal">
+                                      {field.value.length > 0
+                                      ? `${field.value.length} status selecionados`
+                                      : "Selecione os status"}
+                                  </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-64 p-0">
+                                      <Command>
+                                          <CommandInput placeholder="Buscar status..." />
+                                          <CommandList>
+                                              <CommandEmpty>Nenhum status encontrado.</CommandEmpty>
+                                              <CommandGroup>
+                                                  {ALL_STATUSES.map((status) => (
+                                                      <CommandItem
+                                                          key={status.id}
+                                                          onSelect={() => {
+                                                              const currentValues = field.value || [];
+                                                              const newValue = currentValues.includes(status.id)
+                                                                  ? currentValues.filter((s) => s !== status.id)
+                                                                  : [...currentValues, status.id];
+                                                              field.onChange(newValue);
+                                                          }}
+                                                      >
+                                                          <div className={cn(
+                                                              "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                                              field.value.includes(status.id)
+                                                                  ? "bg-primary text-primary-foreground"
+                                                                  : "opacity-50 [&_svg]:invisible"
+                                                          )}>
+                                                          <CheckIcon className={cn("h-4 w-4")} />
+                                                          </div>
+                                                          <span>{status.name}</span>
+                                                      </CommandItem>
+                                                  ))}
+                                              </CommandGroup>
+                                          </CommandList>
+                                      </Command>
+                                  </PopoverContent>
+                              </Popover>
+                              </FormItem>
+                          )}
+                          />
+                      <FormField
+                      control={form.control}
+                      name="connectionId"
+                      render={({ field }) => (
+                          <FormItem>
+                          <FormLabel>Fonte de Dados</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                              <FormControl>
+                              <SelectTrigger>
+                                  <SelectValue placeholder="Selecione uma conexão" />
+                              </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                              {connections.filter(c => c.apiType === 'WordPress').map((c) => (
+                                  <SelectItem key={c.id} value={c.id}>
+                                  {c.name}
+                                  </SelectItem>
+                              ))}
+                              </SelectContent>
+                          </Select>
+                          </FormItem>
+                      )}
+                      />
+                      <div className="flex items-end">
+                          <Button type="submit" disabled={isPending} className="w-full" variant="primary">
+                              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                              Gerar Relatório
+                          </Button>
+                      </div>
+                  </div>
+                  </form>
+              </Form>
+              </CardContent>
+          </Card>
+          
+          <div className="flex-1 flex flex-col">
+              {isPending && <LoadingState />}
+              {error && <ErrorState message={error} />}
+              {reportData && <ReportResults data={reportData} />}
+              {!isPending && !error && !reportData && <InitialState />}
+          </div>
+          </div>
+      </div>
+    </SidebarProvider>
   );
 }
 
@@ -412,5 +414,7 @@ const ReportResults = ({ data }: { data: FinancialReport }) => {
         </div>
     );
 }
+
+    
 
     
