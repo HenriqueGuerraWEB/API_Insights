@@ -4,7 +4,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from './use-toast';
 
-// A simple in-memory UUID generator since the full `uuid` package might be overkill.
 const uuidv4 = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
@@ -12,28 +11,29 @@ const uuidv4 = () => {
   });
 }
 
+export type Auth = 
+    | { type: 'none' }
+    | { type: 'basic'; username: string; password?: string }
+    | { type: 'bearer'; token?: string }
+    | { type: 'apiKey'; headerName?: string; apiKey?: string }
+    | { type: 'wooCommerce'; consumerKey?: string; consumerSecret?: string };
 
 export type Connection = {
   id: string;
   name: string;
   baseUrl: string;
-  authMethod: "none" | "bearer" | "apiKey" | "basic";
-  authToken?: string;
-  apiKeyHeader?: string;
-  apiKeyValue?: string;
-  basicUser?: string;
-  basicPass?: string;
+  apiType: 'Generic' | 'WordPress';
+  auth: Auth;
 };
 
-const CONNECTIONS_STORAGE_KEY = "api-connections";
-const ACTIVE_CONNECTION_ID_STORAGE_KEY = "active-connection-id";
+const CONNECTIONS_STORAGE_KEY = "api-connections-v2";
+const ACTIVE_CONNECTION_ID_STORAGE_KEY = "active-connection-id-v2";
 
 export function useConnections() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [activeConnectionId, setActiveConnectionIdState] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Load initial data from localStorage on client-side mount
   useEffect(() => {
     try {
       const savedConnections = window.localStorage.getItem(CONNECTIONS_STORAGE_KEY);
@@ -107,10 +107,12 @@ export function useConnections() {
   const activeConnection = useMemo(
     () => {
         if (!activeConnectionId) return null;
-        const found = connections.find(c => c.id === activeConnectionId);
+        let found = connections.find(c => c.id === activeConnectionId);
 
-        // If the active ID is invalid (e.g., deleted), clear it.
-        if (!found) {
+        if (!found && connections.length > 0) {
+            found = connections[0];
+            setActiveConnectionId(connections[0].id);
+        } else if (!found) {
             setActiveConnectionId(null);
             return null;
         }

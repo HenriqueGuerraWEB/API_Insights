@@ -31,27 +31,29 @@ import type { Connection } from "@/hooks/use-connections";
 const connectionSchema = z.object({
   name: z.string().min(1, "O nome é obrigatório."),
   baseUrl: z.string().url("URL inválida.").min(1, "A URL base é obrigatória."),
-  authMethod: z.enum(["none", "bearer", "apiKey", "basic"]),
-  authToken: z.string().optional(),
-  apiKeyHeader: z.string().optional(),
-  apiKeyValue: z.string().optional(),
-  basicUser: z.string().optional(),
-  basicPass: z.string().optional(),
-}).refine(data => data.authMethod !== 'bearer' || (data.authToken && data.authToken.length > 0), {
-  message: "O Bearer Token é obrigatório.",
-  path: ["authToken"],
-}).refine(data => data.authMethod !== 'apiKey' || (data.apiKeyHeader && data.apiKeyHeader.length > 0), {
-  message: "O nome do header da API Key é obrigatório.",
-  path: ["apiKeyHeader"],
-}).refine(data => data.authMethod !== 'apiKey' || (data.apiKeyValue && data.apiKeyValue.length > 0), {
-  message: "O valor da API Key é obrigatório.",
-  path: ["apiKeyValue"],
-}).refine(data => data.authMethod !== 'basic' || (data.basicUser && data.basicUser.length > 0), {
-  message: "O usuário é obrigatório.",
-  path: ["basicUser"],
-}).refine(data => data.authMethod !== 'basic' || (data.basicPass && data.basicPass.length > 0), {
-  message: "A senha é obrigatória.",
-  path: ["basicPass"],
+  apiType: z.enum(["Generic", "WordPress"]),
+  auth: z.discriminatedUnion("type", [
+    z.object({ type: z.literal("none") }),
+    z.object({
+      type: z.literal("basic"),
+      username: z.string().min(1, "O usuário é obrigatório."),
+      password: z.string().min(1, "A senha de aplicação é obrigatória."),
+    }),
+    z.object({
+      type: z.literal("bearer"),
+      token: z.string().min(1, "O Bearer Token é obrigatório."),
+    }),
+    z.object({
+      type: z.literal("apiKey"),
+      headerName: z.string().min(1, "O nome do header é obrigatório."),
+      apiKey: z.string().min(1, "O valor da API Key é obrigatório."),
+    }),
+     z.object({
+      type: z.literal("wooCommerce"),
+      consumerKey: z.string().min(1, "A Consumer Key é obrigatória."),
+      consumerSecret: z.string().min(1, "A Consumer Secret é obrigatória."),
+    }),
+  ]),
 });
 
 
@@ -61,17 +63,19 @@ export function ConnectionDialogContent({ onSave, onCancel }: { onSave: (data: O
     defaultValues: {
       name: "",
       baseUrl: "",
-      authMethod: "none",
-      authToken: "",
-      apiKeyHeader: "",
-      apiKeyValue: "",
-      basicUser: "",
-      basicPass: "",
+      apiType: "Generic",
+      auth: { type: "none" },
     },
   });
-  const authMethod = form.watch("authMethod");
+  
+  const authType = form.watch("auth.type");
+  const apiType = form.watch("apiType");
 
   const handleSubmit = form.handleSubmit((data) => {
+    // Adicionar /wp-json se for WordPress e não estiver na URL
+    if (data.apiType === 'WordPress' && !data.baseUrl.endsWith('/wp-json')) {
+      data.baseUrl = data.baseUrl.replace(/\/$/, '') + '/wp-json';
+    }
     onSave(data);
     form.reset();
   });
@@ -90,35 +94,57 @@ export function ConnectionDialogContent({ onSave, onCancel }: { onSave: (data: O
             <FormItem><FormLabel>URL Base</FormLabel><FormControl><Input {...field} placeholder="https://api.example.com" /></FormControl><FormMessage /></FormItem>
           )} />
           
-          <FormField name="authMethod" control={form.control} render={({ field }) => (
-            <FormItem><FormLabel>Autenticação</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent><SelectItem value="none">Nenhuma</SelectItem><SelectItem value="basic">WordPress Basic Auth</SelectItem><SelectItem value="bearer">Bearer Token</SelectItem><SelectItem value="apiKey">API Key (Header)</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+          <FormField name="apiType" control={form.control} render={({ field }) => (
+            <FormItem><FormLabel>Tipo de API</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Generic">Genérica</SelectItem><SelectItem value="WordPress">WordPress / WooCommerce</SelectItem></SelectContent></Select><FormMessage /></FormItem>
           )} />
           
-          {authMethod === "bearer" && <FormField name="authToken" control={form.control} render={({ field }) => (
+          <FormField name="auth.type" control={form.control} render={({ field }) => (
+            <FormItem><FormLabel>Autenticação</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>
+              <SelectItem value="none">Nenhuma</SelectItem>
+              <SelectItem value="basic">WordPress Basic Auth</SelectItem>
+              <SelectItem value="wooCommerce">WooCommerce API Keys</SelectItem>
+              <SelectItem value="bearer">Bearer Token</SelectItem>
+              <SelectItem value="apiKey">API Key (Header)</SelectItem>
+            </SelectContent></Select><FormMessage /></FormItem>
+          )} />
+          
+          {authType === "bearer" && <FormField name="auth.token" control={form.control} render={({ field }) => (
             <FormItem><FormLabel>Bearer Token</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
           )} />}
-          
-          {authMethod === "apiKey" && (
+
+          {authType === "basic" && (
             <>
-              <FormField name="apiKeyHeader" control={form.control} render={({ field }) => (
+              <FormField name="auth.username" control={form.control} render={({ field }) => (
+                <FormItem><FormLabel>Usuário</FormLabel><FormControl><Input {...field} placeholder="user" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField name="auth.password" control={form.control} render={({ field }) => (
+                <FormItem><FormLabel>Senha de Aplicação</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </>
+          )}
+          
+          {authType === "apiKey" && (
+            <>
+              <FormField name="auth.headerName" control={form.control} render={({ field }) => (
                 <FormItem><FormLabel>Nome do Header</FormLabel><FormControl><Input {...field} placeholder="X-API-KEY" /></FormControl><FormMessage /></FormItem>
               )} />
-              <FormField name="apiKeyValue" control={form.control} render={({ field }) => (
+              <FormField name="auth.apiKey" control={form.control} render={({ field }) => (
                 <FormItem><FormLabel>Valor da Key</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
             </>
           )}
 
-          {authMethod === "basic" && (
+           {authType === "wooCommerce" && (
             <>
-              <FormField name="basicUser" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>Usuário</FormLabel><FormControl><Input {...field} placeholder="user" /></FormControl><FormMessage /></FormItem>
+              <FormField name="auth.consumerKey" control={form.control} render={({ field }) => (
+                <FormItem><FormLabel>Consumer Key</FormLabel><FormControl><Input {...field} placeholder="ck_..." /></FormControl><FormMessage /></FormItem>
               )} />
-              <FormField name="basicPass" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>Senha de Aplicação</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
+              <FormField name="auth.consumerSecret" control={form.control} render={({ field }) => (
+                <FormItem><FormLabel>Consumer Secret</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
             </>
           )}
+
         </div>
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={onCancel}>Cancelar</Button>
@@ -128,4 +154,3 @@ export function ConnectionDialogContent({ onSave, onCancel }: { onSave: (data: O
     </Form>
   );
 }
-

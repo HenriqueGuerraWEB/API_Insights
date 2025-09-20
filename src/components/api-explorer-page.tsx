@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useTransition, useCallback, useEffect } from "react";
@@ -80,14 +81,14 @@ import { Sidebar } from "@/components/sidebar";
 import { Badge } from "./ui/badge";
 
 const PageContainer = ({ children }: { children: React.ReactNode }) => (
-  <div className="flex-1 flex flex-col gap-4 p-4">
+  <div className="flex-1 flex flex-col gap-4 p-4 md:p-6">
     {children}
   </div>
 );
 
 // Main Component
 export default function ApiExplorerPage() {
-  const { connections, addConnection, deleteConnection, activeConnection, setActiveConnectionId, activeConnectionId } = useConnections();
+  const { connections, addConnection, deleteConnection, activeConnection, setActiveConnectionId } = useConnections();
   
   const [apiResponse, setApiResponse] = useState<FetchApiDataOutput | null>(null);
   const [displayData, setDisplayData] = useState<any[]>([]);
@@ -100,27 +101,27 @@ export default function ApiExplorerPage() {
   const [jsonViewerData, setJsonViewerData] = useState<any>(null);
 
 
-  const form = useForm<{ method: string, url: string, body: string, params: {key:string, value:string}[], headers: {key:string, value:string}[] }>({
-    defaultValues: { method: "GET", url: "", body: "", params: [], headers: [] },
+  const form = useForm<{ method: string, path: string, body: string, params: {key:string, value:string}[], headers: {key:string, value:string}[] }>({
+    defaultValues: { method: "GET", path: "", body: "", params: [], headers: [] },
   });
   
-  const { control, setValue, watch } = form;
+  const { control, setValue, watch, getValues } = form;
   
   useEffect(() => {
-      const activeConn = connections.find(c => c.id === activeConnectionId);
-      if (activeConn) {
-          setValue('url', activeConn.baseUrl);
-      } else if (connections.length > 0) {
-          // If no active connection is set or the active one is invalid, default to the first one
-          setActiveConnectionId(connections[0].id);
-          setValue('url', connections[0].baseUrl);
-      } else {
-        setValue('url', '');
-      }
-      setApiResponse(null);
-      setDisplayData([]);
-      setColumns([]);
-  }, [activeConnectionId, connections, setValue, setActiveConnectionId]);
+    if (activeConnection) {
+        const currentPath = getValues('path');
+        // Se a URL do form é apenas a base antiga, limpa para começar
+        // ou se o caminho não começa com a nova base, reseta.
+        if (currentPath === '' || connections.some(c => c.baseUrl === currentPath)) {
+            setValue('path', activeConnection.apiType === 'WordPress' ? '/' : '');
+        }
+    } else {
+        setValue('path', '');
+    }
+    setApiResponse(null);
+    setDisplayData([]);
+    setColumns([]);
+  }, [activeConnection, setValue, connections, getValues]);
 
 
   const handleSetActiveConnection = useCallback((id: string | null) => {
@@ -142,8 +143,8 @@ export default function ApiExplorerPage() {
         setApiResponse(null);
         
         const result = await fetchApiData({
-          connection: activeConnection,
-          url: values.url,
+          connectionId: activeConnection.id,
+          path: values.path,
           method: values.method,
           body: values.body,
           params: values.params,
@@ -155,39 +156,39 @@ export default function ApiExplorerPage() {
     })();
   }
   
-  const isDiscoveryResponse = (data: any): boolean => {
-    if (!data) return false;
-    const firstItem = Array.isArray(data) ? data[0] : data;
-    return firstItem && typeof firstItem === 'object' && 'routes' in firstItem && typeof firstItem.routes === 'object';
-  }
-
   const handleApiResponse = (result: FetchApiDataOutput) => {
     setApiResponse(result);
 
     if (result.error) {
       setDisplayData([]);
     } else if (result.data) {
+        // Se for uma resposta de descoberta, não mexe na tabela de dados principal
+        if(result.isDiscovery) {
+            setDisplayData([]);
+            setColumns([]);
+            return;
+        }
+
         let dataArray = Array.isArray(result.data) ? result.data : (result.data ? [result.data] : []);
         
-        // Handle cases where the API returns a single object with a data property that is an array
         if (dataArray.length === 1 && dataArray[0].data && Array.isArray(dataArray[0].data)) {
             dataArray = dataArray[0].data;
         }
 
         setDisplayData(dataArray);
-
-        if (isDiscoveryResponse(result.data)) {
-            setColumns([]);
-        } else {
+        
+        if (dataArray.length > 0) {
             const keys = Array.from(new Set(dataArray.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
 
             const newColumns = keys.map((key, index) => ({
-            key,
-            friendlyName: result.suggestedNames[key] || key,
-            visible: true,
-            order: index,
+                key,
+                friendlyName: result.suggestedNames[key] || key,
+                visible: true,
+                order: index,
             }));
             setColumns(newColumns);
+        } else {
+            setColumns([]);
         }
     }
   }
@@ -265,16 +266,19 @@ export default function ApiExplorerPage() {
     setDisplayData(prevData => prevData.filter((_, index) => index !== rowIndex));
   };
   
-  const handleExploreEndpoint = (path: string) => {
+  const handleExploreEndpoint = (endpointPath: string) => {
     if (!activeConnection) return;
-    const finalUrl = new URL(path, activeConnection.baseUrl).toString();
-    setValue('url', finalUrl);
-    form.handleSubmit(async (values) => {
+    
+    // Substitui o caminho no formulário pelo caminho completo do endpoint
+    setValue('path', endpointPath);
+    
+    // Dispara a execução da consulta
+    form.handleSubmit(async () => {
         startTransition(async () => {
             setApiResponse(null);
             const result = await fetchApiData({
-                connection: activeConnection,
-                url: finalUrl,
+                connectionId: activeConnection.id,
+                path: endpointPath,
                 method: 'GET', // Default to GET for exploration
                 body: '',
                 params: [],
@@ -297,7 +301,7 @@ export default function ApiExplorerPage() {
 
   const hasConnections = connections.length > 0;
   const showWelcomeScreen = !hasConnections;
-  const isDiscoveryMode = !!apiResponse?.data && isDiscoveryResponse(apiResponse.data);
+  const isDiscoveryMode = !!apiResponse?.isDiscovery;
   const showDataTable = displayData.length > 0 && !isDiscoveryMode;
 
   return (
@@ -350,7 +354,7 @@ export default function ApiExplorerPage() {
           <PageContainer>
             <Card className="bg-card/80 backdrop-blur-xl">
                 <CardContent className="p-4">
-                    <QueryBuilderForm form={form} onSubmit={handleExecuteQuery} isPending={isPending} />
+                    <QueryBuilderForm form={form} onSubmit={handleExecuteQuery} isPending={isPending} activeConnection={activeConnection} />
                 </CardContent>
             </Card>
 
@@ -362,7 +366,7 @@ export default function ApiExplorerPage() {
                     </CardTitle>
                     <CardDescription>
                         {isDiscoveryMode 
-                            ? `Endpoints encontrados na sua API.`
+                            ? `Endpoints encontrados na sua API. Clique em "Explorar" para consultá-los.`
                             : displayData.length > 0
                               ? 'Dados retornados da sua consulta.'
                               : 'Execute uma consulta para ver os resultados.'
@@ -389,9 +393,7 @@ export default function ApiExplorerPage() {
                         {isDiscoveryMode && activeConnection && (
                              <DiscoveryView 
                                 data={apiResponse.data} 
-                                onExplore={handleExploreEndpoint} 
-                                namespace={apiResponse.namespace || ''}
-                                connection={activeConnection}
+                                onExplore={handleExploreEndpoint}
                               />
                         )}
                         {showDataTable && (
@@ -422,7 +424,7 @@ type Column = {
 
 // Sub-components
 
-function QueryBuilderForm({ form, onSubmit, isPending }: { form: any, onSubmit: () => void, isPending: boolean }) {
+function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { form: any, onSubmit: () => void, isPending: boolean, activeConnection: Connection | null }) {
   const { fields: params, append: appendParam, remove: removeParam } = useFieldArray({ control: form.control, name: "params" });
   const { fields: headers, append: appendHeader, remove: removeHeader } = useFieldArray({ control: form.control, name: "headers" });
   
@@ -433,16 +435,19 @@ function QueryBuilderForm({ form, onSubmit, isPending }: { form: any, onSubmit: 
           <FormField name="method" control={form.control} render={({ field }) => (
             <FormItem><FormLabel>Método</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem><SelectItem value="PUT">PUT</SelectItem><SelectItem value="DELETE">DELETE</SelectItem></SelectContent></Select></FormItem>
           )} />
-          <FormField name="url" control={form.control} render={({ field }) => (
+          <FormField name="path" control={form.control} render={({ field }) => (
             <FormItem className="flex-1">
                <FormLabel>URL</FormLabel>
-               <FormControl>
-                    <Input 
-                        {...field} 
-                        placeholder="https://sua-api.com/endpoint" 
-                        className="font-code"
-                      />
-                </FormControl>
+               <div className="flex items-center">
+                 {activeConnection && <span className="text-sm text-muted-foreground bg-muted px-3 h-10 flex items-center rounded-l-md border border-r-0 border-input">{activeConnection.baseUrl}</span>}
+                 <FormControl>
+                      <Input 
+                          {...field} 
+                          placeholder={activeConnection?.apiType === 'WordPress' ? '/wp-json/v2/posts' : '/seu/endpoint'} 
+                          className={cn("font-code", activeConnection ? 'rounded-l-none' : '')}
+                        />
+                  </FormControl>
+               </div>
             </FormItem>
           )} />
           <Button type="submit" variant="primary" disabled={isPending} className="h-10">
@@ -629,7 +634,7 @@ const EmptyState = () => (
 );
 
 
-function DiscoveryView({ data, onExplore, namespace, connection }: { data: any, onExplore: (path: string) => void, namespace: string, connection: Connection }) {
+function DiscoveryView({ data, onExplore }: { data: any, onExplore: (path: string) => void }) {
     const schema = Array.isArray(data) ? data[0] : data;
     const routes = schema?.routes ? Object.entries(schema.routes) : [];
   
@@ -637,11 +642,10 @@ function DiscoveryView({ data, onExplore, namespace, connection }: { data: any, 
       <ScrollArea className="h-full">
         <div className="p-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {routes.length > 0 ? routes.map(([path, routeInfo]: [string, any]) => {
-             const displayPath = path;
              return (
                 <Card key={path} className="bg-muted/30">
                   <CardHeader>
-                    <CardTitle className="text-lg font-code break-all">{displayPath}</CardTitle>
+                    <CardTitle className="text-lg font-code break-all">{path}</CardTitle>
                      <div className="flex gap-2 pt-2">
                         {Array.isArray(routeInfo.methods) && routeInfo.methods.map((method: string, index: number) => (
                            <Badge key={`${path}-${method}-${index}`} variant={method === 'GET' ? 'secondary' : 'outline'}>{method}</Badge>

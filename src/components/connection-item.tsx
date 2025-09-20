@@ -2,24 +2,14 @@
 "use client";
 
 import { useCallback } from "react";
+import Link from "next/link";
 import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Database, Trash2 } from "lucide-react";
-
-// This is now a "dumb" component. It just receives data and functions.
-// It does not know about the global state.
-export type Connection = {
-  id: string;
-  name: string;
-  baseUrl: string;
-  authMethod: "none" | "bearer" | "apiKey";
-  authToken?: string;
-  apiKeyHeader?: string;
-  apiKeyValue?: string;
-};
+import type { Connection } from "@/hooks/use-connections";
 
 export function ConnectionItem({
   connection,
@@ -33,11 +23,10 @@ export function ConnectionItem({
   onDelete: (id: string) => void;
 }) {
 
-  // These callbacks are now stable because the onSelect and onDelete props
-  // passed from the parent component are stable (wrapped in useCallback).
   const handleDelete = useCallback(
     (e: React.MouseEvent) => {
-      e.stopPropagation(); // Prevent the onSelect from firing.
+      e.stopPropagation();
+      e.preventDefault(); 
       onDelete(connection.id);
     },
     [connection.id, onDelete]
@@ -49,14 +38,17 @@ export function ConnectionItem({
 
   return (
     <SidebarMenuItem className="w-full relative group/item">
-      <SidebarMenuButton
-        onClick={handleSelect}
-        isActive={isActive}
-        className="justify-center"
-        tooltip={connection.name}
-      >
-        <Database className="size-4" />
-      </SidebarMenuButton>
+      <Link href="/" passHref legacyBehavior>
+        <SidebarMenuButton
+          onClick={handleSelect}
+          isActive={isActive}
+          className="justify-center"
+          tooltip={connection.name}
+          asChild
+        >
+          <a><Database className="size-4" /></a>
+        </SidebarMenuButton>
+      </Link>
       <Button
         variant="ghost"
         size="icon"

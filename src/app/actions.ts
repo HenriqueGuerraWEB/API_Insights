@@ -1,35 +1,38 @@
+
 'use server';
 
 import { suggestFriendlyNames } from '@/ai/flows/ai-schema-assistant';
+import { getConnections } from '@/lib/connections-server';
 import type { Connection } from '@/hooks/use-connections';
 import { z } from 'zod';
 
+
 const fetchApiDataInputSchema = z.object({
-  connection: z.custom<Connection>(),
-  url: z.string(),
+  connectionId: z.string().optional().nullable(),
+  path: z.string(),
   method: z.string(),
   params: z.array(z.object({ key: z.string(), value: z.string() })),
   headers: z.array(z.object({ key: z.string(), value: z.string() })),
   body: z.string().nullable(),
 });
 
+
 export type FetchApiDataOutput = {
   data: any;
   suggestedNames: Record<string, string>;
   error?: string;
-  namespace?: string | null;
+  isDiscovery?: boolean;
 };
 
-function buildUrlWithParams(url: string, params: {key: string, value: string}[]): string {
+function buildUrlWithParams(url: string, params: {key: string, value: string}[]): URL {
     const urlObject = new URL(url);
     params.forEach(p => {
         if (p.key) {
             urlObject.searchParams.append(p.key, p.value);
         }
     });
-    return urlObject.toString();
+    return urlObject;
 }
-
 
 const aiNameSuggestionCache: Record<string, Record<string, string>> = {};
 
@@ -65,26 +68,41 @@ async function getOrFetchAiSuggestions(cacheKey: string, keys: string[]): Promis
 export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema>): Promise<FetchApiDataOutput> {
   try {
     const validatedInput = fetchApiDataInputSchema.parse(input);
-    const { connection, url, method, params, headers: customHeaders, body } = validatedInput;
+    const { connectionId, path, method, params, headers: customHeaders, body } = validatedInput;
 
-    const finalUrl = buildUrlWithParams(url, params);
+    if (!connectionId) {
+        return { data: null, suggestedNames: {}, error: "Nenhuma fonte de dados selecionada." };
+    }
+
+    const connections = getConnections();
+    const connection = connections.find(c => c.id === connectionId);
+
+    if (!connection) {
+        return { data: null, suggestedNames: {}, error: "Fonte de dados não encontrada." };
+    }
     
+    let finalUrl = buildUrlWithParams(connection.baseUrl + path, params);
+
     const finalHeaders: Record<string, string> = { "Content-Type": "application/json" };
     
     customHeaders.forEach(h => {
         if (h.key) finalHeaders[h.key] = h.value;
     });
 
-    if (connection.authMethod === 'bearer' && connection.authToken) {
-        finalHeaders['Authorization'] = `Bearer ${connection.authToken}`;
-    } else if (connection.authMethod === 'apiKey' && connection.apiKeyHeader && connection.apiKeyValue) {
-        finalHeaders[connection.apiKeyHeader] = connection.apiKeyValue;
-    } else if (connection.authMethod === 'basic' && connection.basicUser && connection.basicPass) {
-        const basicAuth = Buffer.from(`${connection.basicUser}:${connection.basicPass}`).toString('base64');
+    // Handle Authentication
+    if (connection.auth.type === 'bearer' && connection.auth.token) {
+        finalHeaders['Authorization'] = `Bearer ${connection.auth.token}`;
+    } else if (connection.auth.type === 'apiKey' && connection.auth.headerName && connection.auth.apiKey) {
+        finalHeaders[connection.auth.headerName] = connection.auth.apiKey;
+    } else if (connection.auth.type === 'basic' && connection.auth.username && connection.auth.password) {
+        const basicAuth = Buffer.from(`${connection.auth.username}:${connection.auth.password}`).toString('base64');
         finalHeaders['Authorization'] = `Basic ${basicAuth}`;
+    } else if (connection.auth.type === 'wooCommerce' && connection.auth.consumerKey && connection.auth.consumerSecret) {
+        finalUrl.searchParams.append('consumer_key', connection.auth.consumerKey);
+        finalUrl.searchParams.append('consumer_secret', connection.auth.consumerSecret);
     }
-
-    const response = await fetch(finalUrl, {
+    
+    const response = await fetch(finalUrl.toString(), {
       method: method,
       headers: new Headers(finalHeaders),
       body: (method === 'POST' || method === 'PUT') && body ? body : null,
@@ -96,44 +114,49 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
       try {
         const errorJson = JSON.parse(errorText);
         const detailedError = errorJson.message || JSON.stringify(errorJson);
-        return { data: null, suggestedNames: {}, namespace: null, error: `Erro: ${response.status} ${response.statusText}. Detalhes: ${detailedError}` };
+        return { data: null, suggestedNames: {}, error: `Erro: ${response.status} ${response.statusText}. Detalhes: ${detailedError}` };
       } catch (e) {
-        return { data: null, suggestedNames: {}, namespace: null, error: `Erro: ${response.status} ${response.statusText}. ${errorText}` };
+        return { data: null, suggestedNames: {}, error: `Erro: ${response.status} ${response.statusText}. ${errorText}` };
       }
     }
 
     const data = await response.json();
+    
+    // Discovery Mode Check
+    const isDiscovery = connection.apiType === 'WordPress' && typeof data === 'object' && data !== null && !Array.isArray(data) && 'routes' in data;
+
+    if (isDiscovery) {
+        return { data, suggestedNames: {}, isDiscovery: true };
+    }
+    
     const dataIsArray = Array.isArray(data);
     
     if (dataIsArray && data.length === 0) {
-      return { data: [], suggestedNames: {}, namespace: null };
+      return { data: [], suggestedNames: {} };
     }
     
     if (!dataIsArray && typeof data === 'object' && data !== null && Object.keys(data).length === 0) {
-      return { data: [], suggestedNames: {}, namespace: null, error: 'A resposta da API retornou um objeto vazio.' };
+      return { data: [], suggestedNames: {}, error: 'A resposta da API retornou um objeto vazio.' };
     }
     
-    const dataForKeys = dataIsArray ? data : [data];
+    let dataForKeys = dataIsArray ? data : (data && data.data && Array.isArray(data.data)) ? data.data : [data];
 
-    const firstItem = dataForKeys[0];
-    const namespace = (firstItem && typeof firstItem === 'object' && 'namespace' in firstItem) ? firstItem.namespace : null;
-
-    const cacheKey = `ai-suggestions:${url}`;
+    const cacheKey = `ai-suggestions:${connection.baseUrl}${path}`;
     
     const keys = Array.from(new Set(dataForKeys.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
     
     const suggestedNames = await getOrFetchAiSuggestions(cacheKey, keys);
 
-    return { data, suggestedNames, namespace };
+    return { data, suggestedNames, isDiscovery: false };
 
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return { data: null, suggestedNames: {}, namespace: null, error: `Dados de entrada inválidos: ${error.errors.map(e => e.message).join(', ')}` };
+      return { data: null, suggestedNames: {}, error: `Dados de entrada inválidos: ${error.errors.map(e => e.message).join(', ')}` };
     }
      if (error.message.includes('fetch failed')) {
-        return { data: null, suggestedNames: {}, namespace: null, error: 'Falha na conexão. Verifique a URL e a conexão com a internet.' };
+        return { data: null, suggestedNames: {}, error: 'Falha na conexão. Verifique a URL e a conexão com a internet.' };
     }
-    return { data: null, suggestedNames: {}, namespace: null, error: error.message || 'Ocorreu um erro desconhecido.' };
+    return { data: null, suggestedNames: {}, error: error.message || 'Ocorreu um erro desconhecido.' };
   }
 }
 

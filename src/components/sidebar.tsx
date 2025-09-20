@@ -6,6 +6,8 @@ import {
   SidebarHeader,
   SidebarContent,
   SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import {
   Dialog,
@@ -13,7 +15,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Rocket } from "lucide-react";
+import { Plus, Rocket, LineChart } from "lucide-react";
+import Link from 'next/link';
+
 
 import type { Connection } from "@/hooks/use-connections";
 import { ConnectionItem } from "@/components/connection-item";
@@ -36,13 +40,23 @@ export function Sidebar({
   return (
     <SidebarPrimitive>
       <SidebarHeader className="p-4 flex justify-center">
-        <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20">
-          <Rocket className="size-5 text-primary" />
-        </div>
+        <Link href="/" passHref>
+          <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20 cursor-pointer">
+            <Rocket className="size-5 text-primary" />
+          </div>
+        </Link>
       </SidebarHeader>
       <SidebarContent className="p-0">
         <ScrollArea className="h-full">
           <SidebarMenu className="p-4 flex flex-col items-center gap-2">
+            <SidebarMenuItem className="w-full">
+               <Link href="/reports" passHref legacyBehavior>
+                  <SidebarMenuButton asChild tooltip="Relatórios" className="justify-center">
+                    <a><LineChart /></a>
+                  </SidebarMenuButton>
+                </Link>
+            </SidebarMenuItem>
+            
             <Dialog>
               <DialogTrigger asChild>
                 <Button
