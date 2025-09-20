@@ -8,83 +8,85 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 7%; /* #121212 */
-    --foreground: 0 0% 98%; /* #FAFAFA */
+    --radius: 0.75rem;
 
-    --card: 0 0% 10% / 0.5; /* rgba(25, 25, 25, 0.5) */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 0 0% 10%;
+    --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 0 0% 98%; /* Using foreground for primary actions */
-    --primary-foreground: 0 0% 7%;
+    --primary: 262 88% 66%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 0 0% 15.7%; /* #282828 */
+    --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 15.7%;
-    --muted-foreground: 0 0% 98% / 0.7; /* rgba(250, 250, 250, 0.7) */
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
 
-    --accent: 0 0% 100% / 0.1; /* rgba(255, 255, 255, 0.1) */
+    --accent: 240 3.7% 15.9%;
     --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 84% 60%; /* A bit more muted red */
+    --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 100% / 0.2; /* rgba(255, 255, 255, 0.2) */
-    --input: 0 0% 100% / 0.05;
-    --ring: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 262 88% 66%;
 
-    --chart-1: 220 70% 50%;
+    --chart-1: 262 88% 66%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-
-    --sidebar-background: 0 0% 7%; /* #121212 */
+    
+    --sidebar-background: 240 10% 3.9%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 0 0% 98%;
-    --sidebar-primary-foreground: 0 0% 7%;
-    --sidebar-accent: 0 0% 100% / 0.1;
+    --sidebar-primary: 262 88% 66%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 3.7% 15.9%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 0 0% 100% / 0.1;
-    --sidebar-ring: 0 0% 98%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 262 88% 66%;
   }
 
   .dark {
-    --background: 0 0% 7%;
+    --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
-    --card: 0 0% 10% / 0.5;
+    --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 10%;
+    --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 7%;
-    --secondary: 0 0% 15.7%;
+    --primary: 262 88% 66%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 15.7%;
-    --muted-foreground: 0 0% 98% / 0.7;
-    --accent: 0 0% 100% / 0.1;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 84% 60%;
+    --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 100% / 0.2;
-    --input: 0 0% 100% / 0.05;
-    --ring: 0 0% 98%;
-    --chart-1: 220 70% 50%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 262 88% 66%;
+    --chart-1: 262 88% 66%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --sidebar-background: 0 0% 7%;
+    --sidebar-background: 240 10% 3.9%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 0 0% 98%;
-    --sidebar-primary-foreground: 0 0% 7%;
-    --sidebar-accent: 0 0% 100% / 0.1;
+    --sidebar-primary: 262 88% 66%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 3.7% 15.9%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 0 0% 100% / 0.1;
-    --sidebar-ring: 0 0% 98%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 262 88% 66%;
   }
 }
 
@@ -94,6 +96,8 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    background-image: radial-gradient(circle at 50% 50%, hsl(255 30% 8%) 0%, hsl(var(--background)) 100%);
   }
 }
 
@@ -116,7 +120,7 @@ body {
         height: 300%;
         background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 1024 1024' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
         animation: grain 8s steps(10) infinite;
-        opacity: 0.02;
+        opacity: 0.15;
     }
 
     @keyframes grain {

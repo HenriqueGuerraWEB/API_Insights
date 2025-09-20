@@ -91,7 +91,8 @@ import {
   FileJson,
   Sheet as SheetIcon,
   FileText,
-  Sparkles
+  Sparkles,
+  Rocket
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -135,12 +136,7 @@ const connectionSchema = z.object({
 const EtherealCard = ({ className, ...props }: React.ComponentProps<typeof Card>) => (
     <Card 
       className={cn(
-        "bg-[rgba(25,25,25,0.5)] border border-white/10 backdrop-blur-[32px] relative overflow-hidden",
-        "before:content-[''] before:absolute before:inset-0 before:p-[1px] before:rounded-[inherit]",
-        "before:[background:linear-gradient(to_bottom,hsl(var(--border)),transparent_40%)]",
-        "before:[mask:linear-gradient(#fff_0_0)_content-box,linear-gradient(#fff_0_0)]",
-        "before:[mask-composite:exclude]",
-        "after:content-[''] after:absolute after:top-0 after:left-1/4 after:w-1/2 after:h-[60px] after:bg-gradient-to-b after:from-white/10 after:to-transparent after:blur-3xl after:opacity-50",
+        "bg-transparent border border-white/5 shadow-2xl shadow-black/20",
         className
       )} 
       {...props} 
@@ -274,20 +270,16 @@ export default function ApiExplorerPage() {
       <Sidebar>
         <SidebarHeader className="p-4">
           <div className="flex items-center gap-3">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="url(#logo-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M2 7L12 12" stroke="url(#logo-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M12 22V12" stroke="url(#logo-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M22 7L12 12" stroke="url(#logo-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M17 4.5L7 9.5" stroke="url(#logo-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <defs>
-                <linearGradient id="logo-gradient" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="white"/>
-                  <stop offset="1" stopColor="white" stopOpacity="0.5"/>
-                </linearGradient>
-              </defs>
-            </svg>
-            <h2 className="text-lg font-semibold text-foreground tracking-wide">API Insights</h2>
+             <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M2 7L12 12" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M12 22V12" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M22 7L12 12" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M17 4.5L7 9.5" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-foreground tracking-tight">API Insights</h2>
           </div>
         </SidebarHeader>
         <SidebarContent className="p-0">
@@ -436,7 +428,7 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
             <FormItem><FormLabel>Método</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem><SelectItem value="PUT">PUT</SelectItem><SelectItem value="DELETE">DELETE</SelectItem></SelectContent></Select></FormItem>
           )} />
           <FormField name="path" control={form.control} render={({ field }) => (
-            <FormItem className="flex-1"><FormLabel>Endpoint</FormLabel><FormControl><div className="flex items-center"><span className="p-2 rounded-l-md bg-muted/80 text-muted-foreground text-sm">{activeConnection?.baseUrl || 'Selecione uma conexão'}</span><Input {...field} placeholder="/users" className="rounded-l-none" /></div></FormControl></FormItem>
+            <FormItem className="flex-1"><FormLabel>Endpoint</FormLabel><FormControl><div className="flex items-center"><span className="p-2 rounded-l-md bg-muted text-muted-foreground text-sm">{activeConnection?.baseUrl || 'Selecione uma conexão'}</span><Input {...field} placeholder="/users" className="rounded-l-none" /></div></FormControl></FormItem>
           )} />
           <Button type="submit" variant="primary" disabled={isPending || !activeConnection} className="h-10">
             {isPending ? <Sparkles className="mr-2 size-4 animate-spin" /> : <Play className="mr-2 size-4" />}
@@ -486,7 +478,7 @@ function DataTable({ data, columns }: { data: any[]; columns: Column[] }) {
   const headers = useMemo(() => columns.map(col => <TableHead key={col.key} className="uppercase tracking-wider font-medium text-muted-foreground">{col.friendlyName}</TableHead>), [columns]);
   
   const rows = useMemo(() => data.map((row, rowIndex) => (
-    <TableRow key={rowIndex} className="border-white/5 even:bg-white/5">
+    <TableRow key={rowIndex} className="border-white/5 odd:bg-white/[0.02]">
       {columns.map(col => (
         <TableCell key={`${rowIndex}-${col.key}`} className="font-code text-sm max-w-xs truncate py-3">
           {typeof row[col.key] === 'object' && row[col.key] !== null ? JSON.stringify(row[col.key]) : String(row[col.key] ?? '')}
@@ -567,37 +559,33 @@ const LoadingState = () => (
   <div className="flex flex-col items-center justify-center h-full text-center">
     <div className="relative w-16 h-16">
        <div className="absolute inset-0 border-2 border-white/10 rounded-full"></div>
-       <div className="absolute inset-0 border-t-2 border-white rounded-full animate-spin"></div>
+       <div className="absolute inset-0 border-t-2 border-primary rounded-full animate-spin"></div>
     </div>
     <p className="mt-4 text-md font-medium text-foreground">Buscando dados...</p>
     <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-      <Sparkles className="size-4 text-white/80" /> IA analisando a estrutura...
+      <Sparkles className="size-4 text-primary/80" /> IA analisando a estrutura...
     </p>
   </div>
 );
 
 const ErrorState = ({ message }: { message: string }) => (
   <div className="flex items-center justify-center h-full p-4">
-    <Alert variant="destructive" className="max-w-md">
-      <AlertCircle className="size-4" />
+    <Alert variant="destructive" className="max-w-md bg-destructive/10 border-destructive/30 text-destructive-foreground">
+      <AlertCircle className="size-4 text-destructive" />
       <AlertTitle>Ocorreu um Erro</AlertTitle>
-      <AlertDescription className="font-code text-sm">{message}</AlertDescription>
+      <AlertDescription className="font-code text-sm text-destructive/80">{message}</AlertDescription>
     </Alert>
   </div>
 );
 
 const InitialState = () => (
     <div className="flex flex-col items-center justify-center h-full text-center p-8">
-       <div className="mb-4 text-white/50">
-          <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <path d="m10 14-2 2 2 2"></path><path d="m14 18 2-2-2-2"></path>
-          </svg>
+       <div className="mb-4 text-primary/50">
+          <Rocket className="size-16" strokeWidth={1.5}/>
        </div>
       <h3 className="text-xl font-medium">Bem-vindo ao API Insights</h3>
       <p className="mt-2 max-w-sm text-muted-foreground">
-        Conecte-se a uma fonte de dados, execute uma consulta e os resultados aparecerão aqui. Seu assistente de IA está pronto para ajudar a dar sentido aos dados brutos.
+        Conecte-se a uma fonte de dados, execute uma consulta e os resultados aparecerão aqui. Seu assistente de IA está pronto para ajudar.
       </p>
     </div>
   );
