@@ -1,5 +1,3 @@
-
-
 'use server';
 
 import { suggestFriendlyNames } from '@/ai/flows/ai-schema-assistant';
@@ -8,7 +6,7 @@ import { z } from 'zod';
 
 const fetchApiDataInputSchema = z.object({
   connection: z.custom<Connection>(),
-  url: z.string().url(),
+  url: z.string(),
   method: z.string(),
   params: z.array(z.object({ key: z.string(), value: z.string() })),
   headers: z.array(z.object({ key: z.string(), value: z.string() })),
@@ -21,7 +19,6 @@ export type FetchApiDataOutput = {
   error?: string;
   namespace?: string | null;
 };
-
 
 function buildUrlWithParams(url: string, params: {key: string, value: string}[]): string {
     const urlObject = new URL(url);
@@ -74,12 +71,10 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
     
     const finalHeaders: Record<string, string> = { "Content-Type": "application/json" };
     
-    // Add custom headers from the form first
     customHeaders.forEach(h => {
         if (h.key) finalHeaders[h.key] = h.value;
     });
 
-    // Then add authentication headers, potentially overwriting a custom one if needed
     if (connection.authMethod === 'bearer' && connection.authToken) {
         finalHeaders['Authorization'] = `Bearer ${connection.authToken}`;
     } else if (connection.authMethod === 'apiKey' && connection.apiKeyHeader && connection.apiKeyValue) {
@@ -110,12 +105,10 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
     const data = await response.json();
     const dataIsArray = Array.isArray(data);
     
-    // Handle empty array response
     if (dataIsArray && data.length === 0) {
       return { data: [], suggestedNames: {}, namespace: null };
     }
     
-    // Handle empty object or other non-array empty responses
     if (!dataIsArray && typeof data === 'object' && data !== null && Object.keys(data).length === 0) {
       return { data: [], suggestedNames: {}, namespace: null, error: 'A resposta da API retornou um objeto vazio.' };
     }

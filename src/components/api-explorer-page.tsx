@@ -86,7 +86,7 @@ const PageContainer = ({ children }: { children: React.ReactNode }) => (
 
 // Main Component
 export default function ApiExplorerPage() {
-  const { connections, addConnection, deleteConnection, activeConnection, setActiveConnectionId } = useConnections();
+  const { connections, addConnection, deleteConnection, activeConnection, setActiveConnectionId, activeConnectionId } = useConnections();
   
   const [apiResponse, setApiResponse] = useState<FetchApiDataOutput | null>(null);
   const [displayData, setDisplayData] = useState<any[]>([]);
@@ -117,12 +117,24 @@ export default function ApiExplorerPage() {
 
 
   useEffect(() => {
-    if (!activeConnection && connections.length > 0) {
-      handleSetActiveConnection(connections[0].id);
-    } else if (activeConnection && !currentUrl) {
-      setValue('url', activeConnection.baseUrl);
+    if (activeConnectionId && connections.length > 0) {
+      const currentActive = connections.find(c => c.id === activeConnectionId);
+      if (currentActive) {
+        setValue('url', currentActive.baseUrl);
+      } else {
+        const firstConnection = connections[0];
+        if (firstConnection) {
+          handleSetActiveConnection(firstConnection.id);
+        }
+      }
+    } else if (connections.length > 0) {
+       const firstConnection = connections[0];
+       if (firstConnection) {
+         handleSetActiveConnection(firstConnection.id);
+       }
     }
-  }, [connections, activeConnection, handleSetActiveConnection, setValue, currentUrl]);
+  
+  }, [connections, activeConnectionId, handleSetActiveConnection, setValue]);
   
   const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
   const visibleColumns = useMemo(() => sortedColumns.filter(c => c.visible), [sortedColumns]);
@@ -234,10 +246,7 @@ export default function ApiExplorerPage() {
   
   const handleExploreEndpoint = (path: string) => {
     if (!activeConnection) return;
-    // This replaces the path in the URL, keeping the base
-    const newUrl = new URL(activeConnection.baseUrl);
-    newUrl.pathname = path;
-    setValue('url', newUrl.toString());
+    setValue('url', path);
     handleExecuteQuery();
   };
   
@@ -575,8 +584,24 @@ const EmptyState = () => (
 function DiscoveryView({ data, onExplore, namespace, connection }: { data: any, onExplore: (path: string) => void, namespace: string, connection: Connection }) {
     const schema = Array.isArray(data) ? data[0] : data;
     const routes = schema?.routes ? Object.entries(schema.routes) : [];
+    const baseUrl = connection.baseUrl;
   
     const getRelativePath = (fullPath: string) => {
+        try {
+            const baseUrlObj = new URL(baseUrl);
+            const fullPathObj = new URL(fullPath, baseUrl); 
+
+            if(fullPathObj.origin === baseUrlObj.origin) {
+                 let relativePath = fullPathObj.pathname.replace(baseUrlObj.pathname, '');
+                 if (relativePath.startsWith('/')) {
+                    return relativePath;
+                 }
+                 return '/' + relativePath;
+            }
+        } catch (e) {
+          // fallback for invalid urls
+        }
+        
         if (!namespace) return fullPath;
         const basePath = `/${namespace}`;
         if (fullPath.startsWith(basePath)) {
@@ -640,6 +665,14 @@ function JsonViewerDialog({ data }: { data: any }) {
                 </ScrollArea>
             </div>
             <DialogFooter>
+                 <Button onClick={() => {
+                    const dialog = document.querySelector('[role="dialog"]');
+                    if(dialog) {
+                        dialog.dispatchEvent(new Event('close'));
+                    }
+                }} variant="ghost">
+                    Fechar
+                </Button>
                 <Button onClick={handleCopy} variant="secondary">
                     <Copy className="mr-2 size-4" />
                     Copiar
@@ -648,3 +681,5 @@ function JsonViewerDialog({ data }: { data: any }) {
         </>
     );
 }
+
+    
