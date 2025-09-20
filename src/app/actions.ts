@@ -9,7 +9,7 @@ import { z } from 'zod';
 
 const fetchApiDataInputSchema = z.object({
   connectionId: z.string().optional().nullable(),
-  path: z.string(),
+  url: z.string().url("URL inválida."),
   method: z.string(),
   params: z.array(z.object({ key: z.string(), value: z.string() })),
   headers: z.array(z.object({ key: z.string(), value: z.string() })),
@@ -68,20 +68,12 @@ async function getOrFetchAiSuggestions(cacheKey: string, keys: string[]): Promis
 export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema>): Promise<FetchApiDataOutput> {
   try {
     const validatedInput = fetchApiDataInputSchema.parse(input);
-    const { connectionId, path, method, params, headers: customHeaders, body } = validatedInput;
-
-    if (!connectionId) {
-        return { data: null, suggestedNames: {}, error: "Nenhuma fonte de dados selecionada." };
-    }
+    const { connectionId, url, method, params, headers: customHeaders, body } = validatedInput;
 
     const connections = getConnections();
-    const connection = connections.find(c => c.id === connectionId);
+    const connection = connectionId ? connections.find(c => c.id === connectionId) : null;
 
-    if (!connection) {
-        return { data: null, suggestedNames: {}, error: "Fonte de dados não encontrada." };
-    }
-    
-    let finalUrl = buildUrlWithParams(connection.baseUrl + path, params);
+    let finalUrl = buildUrlWithParams(url, params);
 
     const finalHeaders: Record<string, string> = { "Content-Type": "application/json" };
     
@@ -89,17 +81,25 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
         if (h.key) finalHeaders[h.key] = h.value;
     });
 
-    // Handle Authentication
-    if (connection.auth.type === 'bearer' && connection.auth.token) {
-        finalHeaders['Authorization'] = `Bearer ${connection.auth.token}`;
-    } else if (connection.auth.type === 'apiKey' && connection.auth.headerName && connection.auth.apiKey) {
-        finalHeaders[connection.auth.headerName] = connection.auth.apiKey;
-    } else if (connection.auth.type === 'basic' && connection.auth.username && connection.auth.password) {
-        const basicAuth = Buffer.from(`${connection.auth.username}:${connection.auth.password}`).toString('base64');
-        finalHeaders['Authorization'] = `Basic ${basicAuth}`;
-    } else if (connection.auth.type === 'wooCommerce' && connection.auth.consumerKey && connection.auth.consumerSecret) {
-        finalUrl.searchParams.append('consumer_key', connection.auth.consumerKey);
-        finalUrl.searchParams.append('consumer_secret', connection.auth.consumerSecret);
+    // Handle Authentication if a connection is active
+    if (connection) {
+        if (connection.auth.type === 'bearer' && connection.auth.token) {
+            finalHeaders['Authorization'] = `Bearer ${connection.auth.token}`;
+        } else if (connection.auth.type === 'apiKey' && connection.auth.headerName && connection.auth.apiKey) {
+            finalHeaders[connection.auth.headerName] = connection.auth.apiKey;
+        } else if (connection.auth.type === 'basic' && connection.auth.username && connection.auth.password) {
+            const basicAuth = Buffer.from(`${connection.auth.username}:${connection.auth.password}`).toString('base64');
+            finalHeaders['Authorization'] = `Basic ${basicAuth}`;
+        } else if (connection.auth.type === 'wooCommerce' && connection.auth.consumerKey && connection.auth.consumerSecret) {
+            // For WooCommerce, we might need to add keys to params if not already on headers
+            // This ensures compatibility even if user changes URL
+            if (!finalUrl.searchParams.has('consumer_key')) {
+                finalUrl.searchParams.append('consumer_key', connection.auth.consumerKey);
+            }
+            if (!finalUrl.searchParams.has('consumer_secret')) {
+                finalUrl.searchParams.append('consumer_secret', connection.auth.consumerSecret);
+            }
+        }
     }
     
     const response = await fetch(finalUrl.toString(), {
@@ -122,8 +122,8 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
 
     const data = await response.json();
     
-    // Discovery Mode Check
-    const isDiscovery = connection.apiType === 'WordPress' && typeof data === 'object' && data !== null && !Array.isArray(data) && 'routes' in data;
+    // Discovery Mode Check - specific to WordPress and the response structure
+    const isDiscovery = connection?.apiType === 'WordPress' && typeof data === 'object' && data !== null && !Array.isArray(data) && 'routes' in data;
 
     if (isDiscovery) {
         return { data, suggestedNames: {}, isDiscovery: true };
@@ -141,7 +141,7 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
     
     let dataForKeys = dataIsArray ? data : (data && data.data && Array.isArray(data.data)) ? data.data : [data];
 
-    const cacheKey = `ai-suggestions:${connection.baseUrl}${path}`;
+    const cacheKey = `ai-suggestions:${finalUrl.origin}${finalUrl.pathname}`;
     
     const keys = Array.from(new Set(dataForKeys.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
     

@@ -102,27 +102,22 @@ export default function ApiExplorerPage() {
   const [jsonViewerData, setJsonViewerData] = useState<any>(null);
 
 
-  const form = useForm<{ method: string, path: string, body: string, params: {key:string, value:string}[], headers: {key:string, value:string}[] }>({
-    defaultValues: { method: "GET", path: "", body: "", params: [], headers: [] },
+  const form = useForm<{ method: string, url: string, body: string, params: {key:string, value:string}[], headers: {key:string, value:string}[] }>({
+    defaultValues: { method: "GET", url: "", body: "", params: [], headers: [] },
   });
   
-  const { control, setValue, watch, getValues } = form;
+  const { control, setValue, watch } = form;
   
   useEffect(() => {
     if (activeConnection) {
-        const currentPath = getValues('path');
-        // Se a URL do form é apenas a base antiga, limpa para começar
-        // ou se o caminho não começa com a nova base, reseta.
-        if (currentPath === '' || connections.some(c => c.baseUrl === currentPath)) {
-            setValue('path', activeConnection.apiType === 'WordPress' ? '/' : '');
-        }
+        setValue('url', activeConnection.baseUrl);
     } else {
-        setValue('path', '');
+        setValue('url', '');
     }
     setApiResponse(null);
     setDisplayData([]);
     setColumns([]);
-  }, [activeConnection, setValue, connections, getValues]);
+  }, [activeConnection, setValue]);
 
 
   const handleSetActiveConnection = useCallback((id: string | null) => {
@@ -135,17 +130,12 @@ export default function ApiExplorerPage() {
 
   const handleExecuteQuery = () => {
     form.handleSubmit(async (values) => {
-      if (!activeConnection) {
-        toast({ variant: "destructive", title: "Nenhuma conexão selecionada." });
-        return;
-      }
-
       startTransition(async () => {
         setApiResponse(null);
         
         const result = await fetchApiData({
-          connectionId: activeConnection.id,
-          path: values.path,
+          connectionId: activeConnection?.id || null,
+          url: values.url,
           method: values.method,
           body: values.body,
           params: values.params,
@@ -163,7 +153,6 @@ export default function ApiExplorerPage() {
     if (result.error) {
       setDisplayData([]);
     } else if (result.data) {
-        // Se for uma resposta de descoberta, não mexe na tabela de dados principal
         if(result.isDiscovery) {
             setDisplayData([]);
             setColumns([]);
@@ -200,17 +189,18 @@ export default function ApiExplorerPage() {
       return;
     }
     
-    if (format === 'json') {
-        const exportCols = visibleColumns.map(c => ({ key: c.key, name: c.friendlyName }));
-        const processedData = displayData.map(row => {
-            const newRow: Record<string, any> = {};
-            for (const col of exportCols) {
-                if (row.hasOwnProperty(col.key)) {
-                    newRow[col.name] = row[col.key];
-                }
+    const exportCols = visibleColumns.map(c => ({ key: c.key, name: c.friendlyName }));
+    const processedData = displayData.map(row => {
+        const newRow: Record<string, any> = {};
+        for (const col of exportCols) {
+            if (row.hasOwnProperty(col.key)) {
+                newRow[col.name] = row[col.key];
             }
-            return newRow;
-        });
+        }
+        return newRow;
+    });
+
+    if (format === 'json') {
         setJsonViewerData({
             title: "Exportar JSON",
             data: processedData,
@@ -221,7 +211,6 @@ export default function ApiExplorerPage() {
     }
 
     startTransition(async () => {
-      const exportCols = visibleColumns.map(c => ({ key: c.key, name: c.friendlyName }));
       const result = await exportData({ data: displayData, columns: exportCols, format });
 
       if (result.error) {
@@ -270,17 +259,19 @@ export default function ApiExplorerPage() {
   const handleExploreEndpoint = (endpointPath: string) => {
     if (!activeConnection) return;
     
-    // Substitui o caminho no formulário pelo caminho completo do endpoint
-    setValue('path', endpointPath);
+    const fullUrl = activeConnection.baseUrl.endsWith('/') || endpointPath.startsWith('/')
+        ? `${activeConnection.baseUrl}${endpointPath}`
+        : `${activeConnection.baseUrl}/${endpointPath}`;
+
+    setValue('url', fullUrl);
     
-    // Dispara a execução da consulta
     form.handleSubmit(async () => {
         startTransition(async () => {
             setApiResponse(null);
             const result = await fetchApiData({
                 connectionId: activeConnection.id,
-                path: endpointPath,
-                method: 'GET', // Default to GET for exploration
+                url: fullUrl,
+                method: 'GET',
                 body: '',
                 params: [],
                 headers: [],
@@ -355,7 +346,7 @@ export default function ApiExplorerPage() {
           <PageContainer>
             <Card className="bg-card/80 backdrop-blur-xl">
                 <CardContent className="p-4">
-                    <QueryBuilderForm form={form} onSubmit={handleExecuteQuery} isPending={isPending} activeConnection={activeConnection} />
+                    <QueryBuilderForm form={form} onSubmit={handleExecuteQuery} isPending={isPending} />
                 </CardContent>
             </Card>
 
@@ -425,7 +416,7 @@ type Column = {
 
 // Sub-components
 
-function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { form: any, onSubmit: () => void, isPending: boolean, activeConnection: Connection | null }) {
+function QueryBuilderForm({ form, onSubmit, isPending }: { form: any, onSubmit: () => void, isPending: boolean }) {
   const { fields: params, append: appendParam, remove: removeParam } = useFieldArray({ control: form.control, name: "params" });
   const { fields: headers, append: appendHeader, remove: removeHeader } = useFieldArray({ control: form.control, name: "headers" });
   
@@ -436,19 +427,12 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
           <FormField name="method" control={form.control} render={({ field }) => (
             <FormItem><FormLabel>Método</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem><SelectItem value="PUT">PUT</SelectItem><SelectItem value="DELETE">DELETE</SelectItem></SelectContent></Select></FormItem>
           )} />
-          <FormField name="path" control={form.control} render={({ field }) => (
+          <FormField name="url" control={form.control} render={({ field }) => (
             <FormItem className="flex-1">
                <FormLabel>URL</FormLabel>
-               <div className="flex items-center">
-                 {activeConnection && <span className="text-sm text-muted-foreground bg-muted px-3 h-10 flex items-center rounded-l-md border border-r-0 border-input">{activeConnection.baseUrl}</span>}
-                 <FormControl>
-                      <Input 
-                          {...field} 
-                          placeholder={activeConnection?.apiType === 'WordPress' ? '/wp-json/v2/posts' : '/seu/endpoint'} 
-                          className={cn("font-code", activeConnection ? 'rounded-l-none' : '')}
-                        />
-                  </FormControl>
-               </div>
+               <FormControl>
+                  <Input {...field} placeholder="https://seu-api.com/recurso" className="font-code" />
+                </FormControl>
             </FormItem>
           )} />
           <Button type="submit" variant="primary" disabled={isPending} className="h-10">
@@ -682,7 +666,7 @@ function JsonViewerDialog({ title, data, showDownload, onDownload, onClose }: { 
 
     const handleDownload = () => {
         if (onDownload) {
-            const fileName = `report-${Date.now()}.json`;
+            const fileName = `export-${Date.now()}.json`;
             onDownload(jsonString, fileName, 'application/json');
         }
     };
@@ -719,5 +703,3 @@ function JsonViewerDialog({ title, data, showDownload, onDownload, onClose }: { 
         </>
     );
 }
-
-    
