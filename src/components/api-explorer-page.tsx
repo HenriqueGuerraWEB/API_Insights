@@ -107,17 +107,64 @@ export default function ApiExplorerPage() {
     if (activeConnection) {
         setViewMode('data-explorer'); // Or some initial state when a connection is active
         try {
-            const url = new URL(activeConnection.baseUrl);
-            queryForm.setValue('path', url.pathname);
+            // Path will be set by the namespace/discovery logic now
+            // queryForm.setValue('path', '/');
         } catch (e) {
             queryForm.setValue('path', '/');
         }
-    } else if (connections.length > 0) {
+    } else if (connections.length > 0 && !activeConnection) {
+        // This case is tricky. If there are connections, but none is active (e.g. after deleting one)
+        // select the first one.
         setActiveConnectionId(connections[0].id);
-    } else {
+    } else { // No connections
         setViewMode('welcome');
     }
   }, [activeConnection, connections, setActiveConnectionId, queryForm]);
+
+
+  useEffect(() => {
+    if (activeConnection) {
+        // When active connection changes, try to fetch the schema/namespace
+        queryForm.setValue('path', '/');
+        const fetchNamespace = async () => {
+             startTransition(async () => {
+                const url = new URL(activeConnection.baseUrl);
+                const finalHeaders: Record<string, string> = { "Content-Type": "application/json" };
+                if (activeConnection.authMethod === 'bearer' && activeConnection.authToken) {
+                    finalHeaders['Authorization'] = `Bearer ${activeConnection.authToken}`;
+                } else if (activeConnection.authMethod === 'apiKey' && activeConnection.apiKeyHeader && activeConnection.apiKeyValue) {
+                    finalHeaders[activeConnection.apiKeyHeader] = activeConnection.apiKeyValue;
+                }
+                const result = await fetchApiData({
+                    url: url.toString(),
+                    method: 'GET',
+                    headers: finalHeaders,
+                    body: null,
+                });
+                setApiResponse(result);
+
+                if (!result.error && result.data) {
+                    const isSchema = (Array.isArray(result.data) ? result.data[0] : result.data)?.routes;
+                    if(isSchema) {
+                        setViewMode('discovery');
+                        const namespace = (Array.isArray(result.data) ? result.data[0] : result.data)?.namespace;
+                        if(namespace){
+                            queryForm.setValue('path', `/wp-json/${namespace}`);
+                        }
+                    } else {
+                        setViewMode('data-explorer');
+                        setDisplayData(result.data);
+                    }
+                } else {
+                    setViewMode('data-explorer');
+                    setDisplayData([]);
+                }
+             });
+        };
+        fetchNamespace();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConnection]); // Rerun only when activeConnection changes
 
 
   const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
@@ -140,6 +187,7 @@ export default function ApiExplorerPage() {
       setApiResponse(null);
       
       const url = new URL(activeConnection.baseUrl);
+      // The path field now holds the full path from the domain root
       url.pathname = values.path;
       values.params.forEach(p => p.key && url.searchParams.append(p.key, p.value));
 
@@ -165,7 +213,7 @@ export default function ApiExplorerPage() {
         setViewMode('data-explorer'); // Stay in data explorer to show error
         setDisplayData([]);
       } else if (result.data) {
-        const isSchema = Array.isArray(result.data) && result.data[0]?.routes;
+        const isSchema = (Array.isArray(result.data) ? result.data[0] : result.data)?.routes;
         if(isSchema) {
             setViewMode('discovery');
             setDisplayData([]);
@@ -301,7 +349,7 @@ export default function ApiExplorerPage() {
                 <CardContent className="flex-1 overflow-auto p-0">
                 {isPending && <LoadingState />}
                 {!isPending && apiResponse?.error && <ErrorState message={apiResponse.error} />}
-                {!isPending && !apiResponse && viewMode !== 'discovery' && <InitialState />}
+                {!isPending && !apiResponse && viewMode !== 'discovery' && !activeConnection && <InitialState />}
 
                 {viewMode === 'discovery' && apiResponse?.data && (
                     <DiscoveryView data={apiResponse.data} onExplore={handleExploreEndpoint} />
@@ -344,7 +392,7 @@ function QueryBuilderForm({ form, onSubmit, isPending, activeConnection }: { for
             <FormItem><FormLabel>Método</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="GET">GET</SelectItem><SelectItem value="POST">POST</SelectItem><SelectItem value="PUT">PUT</SelectItem><SelectItem value="DELETE">DELETE</SelectItem></SelectContent></Select></FormItem>
           )} />
           <FormField name="path" control={form.control} render={({ field }) => (
-            <FormItem className="flex-1"><FormLabel>Endpoint</FormLabel><FormControl><div className="flex items-center"><span className="p-2 rounded-l-md bg-muted text-muted-foreground text-sm">{activeConnection?.baseUrl ? new URL(activeConnection.baseUrl).origin : 'Selecione uma conexão'}</span><Input {...field} placeholder="/users" className="rounded-l-none" /></div></FormControl></FormItem>
+            <FormItem className="flex-1"><FormLabel>Endpoint Path</FormLabel><FormControl><div className="flex items-center"><span className="p-2 rounded-l-md bg-muted text-muted-foreground text-sm">{activeConnection?.baseUrl ? new URL(activeConnection.baseUrl).origin : 'Selecione uma conexão'}</span><Input {...field} placeholder="/wp-json/v2/posts" className="rounded-l-none" /></div></FormControl></FormItem>
           )} />
           <Button type="submit" variant="primary" disabled={isPending || !activeConnection} className="h-10">
             {isPending ? <Sparkles className="mr-2 size-4 animate-spin" /> : <Play className="mr-2 size-4" />}
@@ -542,5 +590,7 @@ function DiscoveryView({ data, onExplore }: { data: any, onExplore: (path: strin
       </ScrollArea>
     );
   }
+
+    
 
     
