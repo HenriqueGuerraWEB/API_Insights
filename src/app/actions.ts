@@ -24,13 +24,20 @@ export type FetchApiDataOutput = {
   isDiscovery?: boolean;
 };
 
-function buildUrlWithParams(url: string, params: {key: string, value: string}[]): URL {
+function buildUrlWithParams(url: string, params: {key: string, value: string}[], connection: Connection | null): URL {
     const urlObject = new URL(url);
     params.forEach(p => {
         if (p.key) {
             urlObject.searchParams.append(p.key, p.value);
         }
     });
+    
+    // WooCommerce auth requires keys in the URL params
+    if (connection?.auth.type === 'wooCommerce' && connection.auth.consumerKey && connection.auth.consumerSecret) {
+        urlObject.searchParams.append('consumer_key', connection.auth.consumerKey);
+        urlObject.searchParams.append('consumer_secret', connection.auth.consumerSecret);
+    }
+
     return urlObject;
 }
 
@@ -88,13 +95,11 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
         } else if (connection.auth.type === 'basic' && connection.auth.username && connection.auth.password) {
             const basicAuth = Buffer.from(`${connection.auth.username}:${connection.auth.password}`).toString('base64');
             finalHeaders['Authorization'] = `Basic ${basicAuth}`;
-        } else if (connection.auth.type === 'wooCommerce' && connection.auth.consumerKey && connection.auth.consumerSecret) {
-            const wooAuth = `Basic ${Buffer.from(`${connection.auth.consumerKey}:${connection.auth.consumerSecret}`).toString('base64')}`;
-            finalHeaders['Authorization'] = wooAuth;
         }
+        // WooCommerce auth is handled in buildUrlWithParams
     }
     
-    const urlWithParams = buildUrlWithParams(url, params);
+    const urlWithParams = buildUrlWithParams(url, params, connection);
 
     const response = await fetch(urlWithParams.toString(), {
       method: method,
@@ -116,7 +121,6 @@ export async function fetchApiData(input: z.infer<typeof fetchApiDataInputSchema
 
     const data = await response.json();
     
-    // Discovery Mode Check - specific to WordPress and the response structure
     const isDiscovery = connection?.apiType === 'WordPress' && typeof data === 'object' && data !== null && !Array.isArray(data) && 'routes' in data;
 
     if (isDiscovery) {
