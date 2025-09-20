@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { toast } from './use-toast';
+import { useToast } from './use-toast';
 
 // A simple in-memory UUID generator since the full `uuid` package might be overkill.
 const uuidv4 = () => {
@@ -40,7 +40,6 @@ export function useConnections() {
       }
       
       const savedActiveId = window.localStorage.getItem(ACTIVE_CONNECTION_ID_STORAGE_KEY);
-      // Ensure we don't set a non-string value, null is ok.
       if (savedActiveId && savedActiveId !== "null" && savedActiveId !== "undefined") {
          setActiveConnectionIdState(JSON.parse(savedActiveId));
       } else {
@@ -49,7 +48,6 @@ export function useConnections() {
 
     } catch (error) {
       console.error("Failed to load connections from localStorage", error);
-       // If parsing fails, reset to a clean state.
       window.localStorage.removeItem(CONNECTIONS_STORAGE_KEY);
       window.localStorage.removeItem(ACTIVE_CONNECTION_ID_STORAGE_KEY);
       setConnections([]);
@@ -90,7 +88,6 @@ export function useConnections() {
       console.error("Failed to save connections to localStorage", error);
     }
     
-    // If the active connection was deleted, select a new one or clear it.
     if (activeConnectionId === id) {
       const newActiveId = newConnections.length > 0 ? newConnections[0].id : null;
       setActiveConnectionId(newActiveId);
@@ -106,13 +103,17 @@ export function useConnections() {
   const activeConnection = useMemo(
     () => {
         if (!activeConnectionId) return null;
-        const found = connections.find(c => c.id === activeConnectionId);
-        // If the active ID from storage doesn't match any connection, it's stale.
+        let found = connections.find(c => c.id === activeConnectionId);
+
         if (!found && connections.length > 0) {
-            // Default to the first connection
-            setActiveConnectionId(connections[0].id);
+            const newActiveId = connections[0].id;
+            setActiveConnectionId(newActiveId);
             return connections[0];
+        } else if (!found && connections.length === 0) {
+            setActiveConnectionId(null);
+            return null;
         }
+
         return found || null;
     },
     [connections, activeConnectionId, setActiveConnectionId]
