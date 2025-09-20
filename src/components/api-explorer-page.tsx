@@ -72,7 +72,8 @@ import {
   Rocket,
   Search,
   Trash2,
-  Copy
+  Copy,
+  Download
 } from "lucide-react";
 import { ConnectionDialogContent } from "@/components/connection-dialog";
 import { Sidebar } from "@/components/sidebar";
@@ -104,37 +105,28 @@ export default function ApiExplorerPage() {
   });
   
   const { control, setValue, watch } = form;
-  const currentUrl = watch('url');
-
-  const handleSetActiveConnection = useCallback((id: string | null) => {
-      setActiveConnectionId(id);
-      const conn = connections.find(c => c.id === id);
-      setValue('url', conn?.baseUrl || '');
+  
+  useEffect(() => {
+      const activeConn = connections.find(c => c.id === activeConnectionId);
+      if (activeConn) {
+          setValue('url', activeConn.baseUrl);
+      } else if (connections.length > 0) {
+          // If no active connection is set or the active one is invalid, default to the first one
+          setActiveConnectionId(connections[0].id);
+          setValue('url', connections[0].baseUrl);
+      } else {
+        setValue('url', '');
+      }
       setApiResponse(null);
       setDisplayData([]);
       setColumns([]);
-  }, [setActiveConnectionId, setValue, connections]);
+  }, [activeConnectionId, connections, setValue, setActiveConnectionId]);
 
 
-  useEffect(() => {
-    if (activeConnectionId && connections.length > 0) {
-      const currentActive = connections.find(c => c.id === activeConnectionId);
-      if (currentActive) {
-        setValue('url', currentActive.baseUrl);
-      } else {
-        const firstConnection = connections[0];
-        if (firstConnection) {
-          handleSetActiveConnection(firstConnection.id);
-        }
-      }
-    } else if (connections.length > 0) {
-       const firstConnection = connections[0];
-       if (firstConnection) {
-         handleSetActiveConnection(firstConnection.id);
-       }
-    }
-  
-  }, [connections, activeConnectionId, handleSetActiveConnection, setValue]);
+  const handleSetActiveConnection = useCallback((id: string | null) => {
+      setActiveConnectionId(id);
+  }, [setActiveConnectionId]);
+
   
   const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.order - b.order), [columns]);
   const visibleColumns = useMemo(() => sortedColumns.filter(c => c.visible), [sortedColumns]);
@@ -175,30 +167,55 @@ export default function ApiExplorerPage() {
     if (result.error) {
       setDisplayData([]);
     } else if (result.data) {
-      const dataArray = Array.isArray(result.data) ? result.data : [result.data];
-      setDisplayData(dataArray);
+        let dataArray = Array.isArray(result.data) ? result.data : (result.data ? [result.data] : []);
+        
+        // Handle cases where the API returns a single object with a data property that is an array
+        if (dataArray.length === 1 && dataArray[0].data && Array.isArray(dataArray[0].data)) {
+            dataArray = dataArray[0].data;
+        }
 
-      if (isDiscoveryResponse(result.data)) {
-        setColumns([]);
-      } else {
-        const keys = Array.from(new Set(dataArray.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
+        setDisplayData(dataArray);
 
-        const newColumns = keys.map((key, index) => ({
-          key,
-          friendlyName: result.suggestedNames[key] || key,
-          visible: true,
-          order: index,
-        }));
-        setColumns(newColumns);
-      }
+        if (isDiscoveryResponse(result.data)) {
+            setColumns([]);
+        } else {
+            const keys = Array.from(new Set(dataArray.flatMap(item => typeof item === 'object' && item !== null ? Object.keys(item) : [])));
+
+            const newColumns = keys.map((key, index) => ({
+            key,
+            friendlyName: result.suggestedNames[key] || key,
+            visible: true,
+            order: index,
+            }));
+            setColumns(newColumns);
+        }
     }
   }
-
 
   const handleExport = async (format: "json" | "csv" | "pdf") => {
     if (displayData.length === 0 || visibleColumns.length === 0) {
       toast({ variant: "destructive", title: "Não há dados para exportar." });
       return;
+    }
+    
+    if (format === 'json') {
+        const exportCols = visibleColumns.map(c => ({ key: c.key, name: c.friendlyName }));
+        const processedData = displayData.map(row => {
+            const newRow: Record<string, any> = {};
+            for (const col of exportCols) {
+                if (row.hasOwnProperty(col.key)) {
+                    newRow[col.name] = row[col.key];
+                }
+            }
+            return newRow;
+        });
+        setJsonViewerData({
+            title: "Exportar JSON",
+            data: processedData,
+            showDownload: true,
+        });
+        setIsJsonViewerOpen(true);
+        return;
     }
 
     startTransition(async () => {
@@ -208,19 +225,23 @@ export default function ApiExplorerPage() {
       if (result.error) {
         toast({ variant: "destructive", title: "Erro na Exportação", description: result.error });
       } else {
-        const blob = new Blob([result.content], { type: result.mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = result.fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        triggerDownload(result.content, result.fileName, result.mimeType);
         toast({ title: "Exportação Concluída", description: `${result.fileName} foi baixado.` });
       }
     });
   };
+
+  const triggerDownload = (content: string, fileName: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
   
    const handleAddNewConnection = useCallback((newConnection: Omit<Connection, "id">) => {
     addConnection(newConnection);
@@ -246,12 +267,30 @@ export default function ApiExplorerPage() {
   
   const handleExploreEndpoint = (path: string) => {
     if (!activeConnection) return;
-    setValue('url', path);
-    handleExecuteQuery();
+    const finalUrl = new URL(path, activeConnection.baseUrl).toString();
+    setValue('url', finalUrl);
+    form.handleSubmit(async (values) => {
+        startTransition(async () => {
+            setApiResponse(null);
+            const result = await fetchApiData({
+                connection: activeConnection,
+                url: finalUrl,
+                method: 'GET', // Default to GET for exploration
+                body: '',
+                params: [],
+                headers: [],
+            });
+            handleApiResponse(result);
+        });
+    })();
   };
   
   const handleViewJson = (rowData: any) => {
-    setJsonViewerData(rowData);
+    setJsonViewerData({
+        title: "Visualizador JSON",
+        data: rowData,
+        showDownload: false,
+    });
     setIsJsonViewerOpen(true);
   };
 
@@ -280,7 +319,16 @@ export default function ApiExplorerPage() {
         
         <Dialog open={isJsonViewerOpen} onOpenChange={setIsJsonViewerOpen}>
           <DialogContent className="max-w-3xl">
-              <JsonViewerDialog data={jsonViewerData} />
+              <JsonViewerDialog 
+                title={jsonViewerData?.title}
+                data={jsonViewerData?.data} 
+                showDownload={jsonViewerData?.showDownload}
+                onDownload={(content, fileName, mimeType) => {
+                    triggerDownload(content, fileName, mimeType);
+                    toast({ title: "Download Iniciado", description: `${fileName} foi baixado.` });
+                }}
+                onClose={() => setIsJsonViewerOpen(false)}
+              />
           </DialogContent>
         </Dialog>
 
@@ -584,43 +632,18 @@ const EmptyState = () => (
 function DiscoveryView({ data, onExplore, namespace, connection }: { data: any, onExplore: (path: string) => void, namespace: string, connection: Connection }) {
     const schema = Array.isArray(data) ? data[0] : data;
     const routes = schema?.routes ? Object.entries(schema.routes) : [];
-    const baseUrl = connection.baseUrl;
   
-    const getRelativePath = (fullPath: string) => {
-        try {
-            const baseUrlObj = new URL(baseUrl);
-            const fullPathObj = new URL(fullPath, baseUrl); 
-
-            if(fullPathObj.origin === baseUrlObj.origin) {
-                 let relativePath = fullPathObj.pathname.replace(baseUrlObj.pathname, '');
-                 if (relativePath.startsWith('/')) {
-                    return relativePath;
-                 }
-                 return '/' + relativePath;
-            }
-        } catch (e) {
-          // fallback for invalid urls
-        }
-        
-        if (!namespace) return fullPath;
-        const basePath = `/${namespace}`;
-        if (fullPath.startsWith(basePath)) {
-            return fullPath.substring(basePath.length) || '/';
-        }
-        return fullPath;
-    }
-
     return (
       <ScrollArea className="h-full">
         <div className="p-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {routes.length > 0 ? routes.map(([path, routeInfo]: [string, any]) => {
-             const displayPath = getRelativePath(path);
+             const displayPath = path;
              return (
                 <Card key={path} className="bg-muted/30">
                   <CardHeader>
                     <CardTitle className="text-lg font-code break-all">{displayPath}</CardTitle>
                      <div className="flex gap-2 pt-2">
-                        {routeInfo.methods.map((method: string, index: number) => (
+                        {Array.isArray(routeInfo.methods) && routeInfo.methods.map((method: string, index: number) => (
                            <Badge key={`${path}-${method}-${index}`} variant={method === 'GET' ? 'secondary' : 'outline'}>{method}</Badge>
                         ))}
                     </div>
@@ -639,7 +662,7 @@ function DiscoveryView({ data, onExplore, namespace, connection }: { data: any, 
     );
 }
 
-function JsonViewerDialog({ data }: { data: any }) {
+function JsonViewerDialog({ title, data, showDownload, onDownload, onClose }: { title?: string, data: any, showDownload?: boolean, onDownload?: (content: string, fileName: string, mimeType: string) => void, onClose: () => void }) {
     const { toast } = useToast();
     const jsonString = useMemo(() => JSON.stringify(data, null, 2), [data]);
 
@@ -652,31 +675,41 @@ function JsonViewerDialog({ data }: { data: any }) {
         });
     };
 
+    const handleDownload = () => {
+        if (onDownload) {
+            const fileName = `report-${Date.now()}.json`;
+            onDownload(jsonString, fileName, 'application/json');
+        }
+    };
+
     if (!data) return null;
 
     return (
         <>
             <DialogHeader>
-                <DialogTitle>Visualizador JSON</DialogTitle>
+                <DialogTitle>{title || 'Visualizador JSON'}</DialogTitle>
             </DialogHeader>
             <div className="relative">
                 <ScrollArea className="h-[60vh] w-full rounded-md border bg-muted/30 p-4">
                     <pre><code className="font-code text-sm">{jsonString}</code></pre>
                 </ScrollArea>
             </div>
-            <DialogFooter>
-                 <Button onClick={() => {
-                    const dialog = document.querySelector('[role="dialog"]');
-                    if(dialog) {
-                        dialog.dispatchEvent(new Event('close'));
-                    }
-                }} variant="ghost">
+            <DialogFooter className="sm:justify-between">
+                <Button onClick={onClose} variant="ghost">
                     Fechar
                 </Button>
-                <Button onClick={handleCopy} variant="secondary">
-                    <Copy className="mr-2 size-4" />
-                    Copiar
-                </Button>
+                <div className="flex gap-2">
+                    <Button onClick={handleCopy} variant="secondary">
+                        <Copy className="mr-2 size-4" />
+                        Copiar
+                    </Button>
+                    {showDownload && (
+                         <Button onClick={handleDownload} variant="primary">
+                            <Download className="mr-2 size-4" />
+                            Baixar
+                        </Button>
+                    )}
+                </div>
             </DialogFooter>
         </>
     );
