@@ -81,10 +81,6 @@ export function ConnectionDialogContent({ onSave, onCancel }: { onSave: (data: O
   const apiType = form.watch("apiType");
 
   const handleSubmit = form.handleSubmit((data) => {
-    // Adicionar /wp-json se for WordPress e não estiver na URL
-    if (data.apiType === 'WordPress' && !data.baseUrl.endsWith('/wp-json')) {
-      data.baseUrl = data.baseUrl.replace(/\/$/, '') + '/wp-json';
-    }
     onSave(data);
     form.reset();
   });
