@@ -14,7 +14,6 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarInset,
-  SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -136,7 +135,7 @@ const connectionSchema = z.object({
 const EtherealCard = ({ className, ...props }: React.ComponentProps<typeof Card>) => (
     <Card 
       className={cn(
-        "bg-transparent border border-white/5 shadow-2xl shadow-black/20",
+        "bg-white/5 border border-white/10 shadow-lg backdrop-blur-2xl rounded-2xl",
         className
       )} 
       {...props} 
@@ -263,42 +262,29 @@ export default function ApiExplorerPage() {
       setActiveConnectionId(connections.length > 1 ? connections.filter(c => c.id !== id)[0].id : null);
     }
   };
-
-
+  
   return (
     <SidebarProvider>
       <Sidebar>
-        <SidebarHeader className="p-4">
-          <div className="flex items-center gap-3">
-             <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M2 7L12 12" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M12 22V12" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M22 7L12 12" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M17 4.5L7 9.5" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-foreground tracking-tight">API Insights</h2>
+        <SidebarHeader className="p-4 flex justify-center">
+          <div className="w-8 h-8 flex items-center justify-center bg-primary/10 rounded-lg border border-primary/20">
+            <Rocket className="size-5 text-primary" />
           </div>
         </SidebarHeader>
         <SidebarContent className="p-0">
           <ScrollArea className="h-full">
-            <SidebarMenu className="p-4">
-              <SidebarMenuItem className="mb-2">
+            <SidebarMenu className="p-4 flex flex-col items-center">
+              <SidebarMenuItem className="mb-2 w-full">
                  <ConnectionDialog onSave={addConnection} />
               </SidebarMenuItem>
               {connections.map(conn => (
-                <SidebarMenuItem key={conn.id}>
+                <SidebarMenuItem key={conn.id} className="w-full">
                   <SidebarMenuButton 
                     onClick={() => setActiveConnectionId(conn.id)}
                     isActive={activeConnectionId === conn.id}
-                    className="justify-between"
+                    className="justify-center"
                   >
-                    <div className="flex items-center gap-2 truncate">
-                      <Database className="size-4" />
-                      <span className="truncate">{conn.name}</span>
-                    </div>
+                    <Database className="size-4" />
                   </SidebarMenuButton>
                   <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-7 w-7" onClick={(e) => { e.stopPropagation(); deleteConnection(conn.id); }}>
                     <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />
@@ -308,9 +294,6 @@ export default function ApiExplorerPage() {
             </SidebarMenu>
           </ScrollArea>
         </SidebarContent>
-        <SidebarFooter className="p-4 border-t border-sidebar-border">
-            <p className="text-xs text-muted-foreground">Construído com Next.js e GenAI.</p>
-        </SidebarFooter>
       </Sidebar>
       <SidebarInset>
         <div className="flex flex-col h-screen p-4 gap-4">
@@ -371,8 +354,8 @@ function ConnectionDialog({ onSave }: { onSave: (data: Omit<Connection, 'id'>) =
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="primary" className="w-full">
-          <Plus className="mr-2 size-4" /> Nova Conexão
+        <Button variant="primary" className="w-full justify-center">
+          <Plus className="size-4" />
         </Button>
       </DialogTrigger>
       <DialogContent>
